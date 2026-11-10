@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../../../core/phone.dart';
 import '../../auth/cubit/session_cubit.dart';
 import '../../sheet_import/view/contributions_page.dart';
 import '../cubit/apartments_cubit.dart';
 import '../data/apartment.dart';
+import 'apartments_page.dart' show whatsappGreen;
 
 /// Apartment profile and editor. Financial sections are added with the
 /// ledger; this page currently covers the apartment's own details.
@@ -205,6 +207,15 @@ class _ApartmentFormState extends State<_ApartmentForm> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (c.phone.trim().isNotEmpty)
+                      IconButton(
+                        tooltip: 'واتساب',
+                        icon: const FaIcon(
+                          FontAwesomeIcons.whatsapp,
+                          color: whatsappGreen,
+                        ),
+                        onPressed: () => openWhatsApp(context, c.phone),
+                      ),
                     if (c.phone.trim().isNotEmpty)
                       IconButton(
                         tooltip: 'اتصال بـ${c.kind.label}',

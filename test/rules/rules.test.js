@@ -133,3 +133,22 @@ test('contribution records are staff-only and cannot be deleted by a treasurer',
   await assertFails(getDoc(doc(as('stranger'), path)));
   await assertFails(getDoc(doc(as('resident'), path)));
 });
+
+test('transactions: staff record, nobody deletes, only admins touch the opening balance', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `${B}/transactions/opening`), { type: 'opening', amount: 285000, createdBy: 'setup' }));
+  const t = as('treasurer');
+  await assertSucceeds(setDoc(doc(t, `${B}/transactions/e1`), { type: 'expense', amount: 25000, createdBy: 'treasurer' }));
+  await assertFails(setDoc(doc(t, `${B}/transactions/e2`), { type: 'expense', amount: 25000, createdBy: 'owner' }));
+  await assertFails(setDoc(doc(t, `${B}/transactions/e3`), { type: 'expense', amount: -5, createdBy: 'treasurer' }));
+  await assertFails(setDoc(doc(t, `${B}/transactions/o2`), { type: 'opening', amount: 1, createdBy: 'treasurer' }));
+  await assertSucceeds(updateDoc(doc(t, `${B}/transactions/e1`), { amount: 30000 }));
+  await assertSucceeds(updateDoc(doc(t, `${B}/transactions/e1`), { voided: true }));
+  await assertFails(updateDoc(doc(t, `${B}/transactions/e1`), { type: 'income' }));
+  await assertFails(deleteDoc(doc(t, `${B}/transactions/e1`)));
+  await assertFails(deleteDoc(doc(as('owner'), `${B}/transactions/e1`)));
+  await assertFails(updateDoc(doc(t, `${B}/transactions/opening`), { amount: 1 }));
+  await assertSucceeds(updateDoc(doc(as('owner'), `${B}/transactions/opening`), { amount: 290000 }));
+  for (const db of [anon(), as('stranger'), as('resident')]) {
+    await assertFails(getDoc(doc(db, `${B}/transactions/e1`)));
+  }
+});

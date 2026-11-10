@@ -5,12 +5,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_theme.dart';
 import 'features/apartments/cubit/apartments_cubit.dart';
 import 'features/apartments/data/apartment_repository.dart';
 import 'features/apartments/view/apartment_page.dart';
 import 'features/auth/cubit/session_cubit.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/view/auth_gate.dart';
+import 'features/ledger/cubit/ledger_cubit.dart';
+import 'features/ledger/data/ledger_repository.dart';
+import 'features/ledger/view/ledger_page.dart';
+import 'features/projects/view/projects_page.dart';
 import 'features/public/view/public_page.dart';
 import 'features/settings/data/members_repository.dart';
 import 'features/sheet_import/data/import_item.dart';
@@ -24,12 +29,14 @@ class HomeSystemApp extends StatefulWidget {
     required this.apartmentRepository,
     required this.membersRepository,
     required this.importRepository,
+    required this.ledgerRepository,
   });
 
   final AuthRepository authRepository;
   final ApartmentRepository apartmentRepository;
   final MembersRepository membersRepository;
   final ImportRepository importRepository;
+  final LedgerRepository ledgerRepository;
 
   @override
   State<HomeSystemApp> createState() => _HomeSystemAppState();
@@ -52,8 +59,13 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
       GoRoute(path: '/login', builder: (_, _) => const AuthGate()),
       // Staff-only data is loaded only once a staff session is active.
       ShellRoute(
-        builder: (_, _, child) => BlocProvider(
-          create: (_) => ApartmentsCubit(widget.apartmentRepository),
+        builder: (_, _, child) => MultiBlocProvider(
+          providers: [
+            BlocProvider(
+              create: (_) => ApartmentsCubit(widget.apartmentRepository),
+            ),
+            BlocProvider(create: (_) => LedgerCubit(widget.ledgerRepository)),
+          ],
           child: child,
         ),
         routes: [
@@ -62,6 +74,12 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
             builder: (_, _) => const HomeShell(),
             routes: [
               GoRoute(path: 'sheet', builder: (_, _) => const SheetDataPage()),
+              GoRoute(path: 'ledger', builder: (_, _) => const LedgerPage()),
+              GoRoute(
+                path: 'projects/:gid',
+                builder: (_, state) =>
+                    ProjectDetailPage(sheetGid: state.pathParameters['gid']!),
+              ),
               GoRoute(
                 path: 'apartments/:id',
                 builder: (_, state) =>
@@ -99,23 +117,13 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
           locale: const Locale('ar', 'EG'),
           supportedLocales: const [Locale('ar', 'EG')],
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          theme: _theme(),
+          theme: buildAppTheme(),
           themeMode: ThemeMode.light,
         ),
       ),
     );
   }
 }
-
-ThemeData _theme() => ThemeData(
-  colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E)),
-  inputDecorationTheme: const InputDecorationTheme(
-    border: OutlineInputBorder(),
-  ),
-  filledButtonTheme: FilledButtonThemeData(
-    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-  ),
-);
 
 /// Notifies the router whenever the session changes.
 class _StreamListenable extends ChangeNotifier {

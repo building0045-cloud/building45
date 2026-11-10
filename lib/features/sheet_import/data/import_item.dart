@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
 import '../../../core/building_refs.dart';
+import '../../../core/money.dart';
+
+export '../../../core/money.dart' show parseAmount;
 
 /// What a contribution record looks like. Imported records are proposals
 /// taken from the old spreadsheet, not confirmed ledger entries.
@@ -29,17 +32,6 @@ enum ImportKind {
 const settledText = 'خالص';
 const notHandedOverText = 'لم يتسلم الوحده';
 const paidInPrefix = 'تم الدفع في';
-
-const _arabicDigits = '٠١٢٣٤٥٦٧٨٩';
-
-/// Parses a plain number written with Western or Arabic-Indic digits.
-num? parseAmount(String text) {
-  var s = text.trim();
-  for (var i = 0; i < 10; i++) {
-    s = s.replaceAll(_arabicDigits[i], '$i');
-  }
-  return RegExp(r'^\d+(\.\d+)?$').hasMatch(s) ? num.parse(s) : null;
-}
 
 /// Kind of an apartment's contribution cell, from its text.
 ImportKind classifyContribution(String text) {

@@ -69,6 +69,23 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
+      // Money movements. Never deleted: corrections change the amount or
+      // cancel the entry, and both are recorded in the audit log.
+      match /transactions/{id} {
+        function validAmount() {
+          return request.resource.data.amount is int && request.resource.data.amount > 0;
+        }
+        allow read: if isStaff();
+        allow create: if isStaff()
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.type in ['income', 'subscription', 'expense']
+          && validAmount();
+        allow update: if isStaff()
+          && request.resource.data.type == resource.data.type
+          && (resource.data.type != 'opening' || isAdmin())
+          && validAmount();
+      }
+
       // Append-only history of financial and permission changes.
       match /auditLog/{id} {
         allow read: if isStaff();

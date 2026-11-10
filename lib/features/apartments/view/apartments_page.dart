@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/phone.dart';
@@ -107,60 +108,90 @@ class _ApartmentsPageState extends State<ApartmentsPage> {
   }
 }
 
+const whatsappGreen = Color(0xFF25D366);
+
+/// Lets the user choose owner or renter when more than one has a number.
+Future<Contact?> pickContact(
+  BuildContext context,
+  List<Contact> contacts,
+  String question,
+) async {
+  if (contacts.length == 1) return contacts.first;
+  return showModalBottomSheet<Contact>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: Text(question)),
+          for (final c in contacts)
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: Text('${c.kind.label}: ${c.name}'),
+              subtitle: Text(c.phone, textDirection: TextDirection.ltr),
+              onTap: () => Navigator.of(context).pop(c),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+}
+
 class _ApartmentTile extends StatelessWidget {
   const _ApartmentTile({required this.apartment});
 
   final Apartment apartment;
 
   Future<void> _call(BuildContext context) async {
-    final contacts = apartment.callableContacts;
-    if (contacts.length == 1) {
-      return callPhone(context, contacts.first.phone);
-    }
-    final chosen = await showModalBottomSheet<Contact>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('الاتصال بمن؟')),
-            for (final c in contacts)
-              ListTile(
-                leading: const Icon(Icons.call),
-                title: Text('${c.kind.label}: ${c.name}'),
-                subtitle: Text(c.phone, textDirection: TextDirection.ltr),
-                onTap: () => Navigator.of(context).pop(c),
-              ),
-          ],
-        ),
-      ),
+    final c = await pickContact(
+      context,
+      apartment.callableContacts,
+      'الاتصال بمن؟',
     );
-    if (chosen != null && context.mounted) {
-      await callPhone(context, chosen.phone);
-    }
+    if (c != null && context.mounted) await callPhone(context, c.phone);
+  }
+
+  Future<void> _whatsApp(BuildContext context) async {
+    final c = await pickContact(
+      context,
+      apartment.callableContacts,
+      'مراسلة من على واتساب؟',
+    );
+    if (c != null && context.mounted) await openWhatsApp(context, c.phone);
   }
 
   @override
   Widget build(BuildContext context) {
     final a = apartment;
+    final hasPhone = a.callableContacts.isNotEmpty;
     return ListTile(
       leading: CircleAvatar(child: Text('${a.number}')),
       title: Text(a.displayName ?? 'غير معروف'),
       subtitle: Text(
         [a.status.label, if (!a.feeEligible) 'معفاة من الاشتراك'].join(' · '),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (a.callableContacts.isNotEmpty)
-            IconButton(
-              tooltip: 'اتصال',
-              icon: const Icon(Icons.call),
-              onPressed: () => _call(context),
-            ),
-          const Icon(Icons.chevron_left),
-        ],
-      ),
+      trailing: hasPhone
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'واتساب',
+                  icon: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    color: whatsappGreen,
+                  ),
+                  onPressed: () => _whatsApp(context),
+                ),
+                IconButton(
+                  tooltip: 'اتصال',
+                  icon: const Icon(Icons.call),
+                  onPressed: () => _call(context),
+                ),
+              ],
+            )
+          : null,
       onTap: () => context.go('/app/apartments/${a.id}'),
     );
   }

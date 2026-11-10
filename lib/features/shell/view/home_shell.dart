@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../apartments/cubit/apartments_cubit.dart';
-import '../../apartments/data/apartment.dart';
 import '../../apartments/view/apartments_page.dart';
+import '../../dashboard/view/dashboard_page.dart';
+import '../../projects/view/projects_page.dart';
 import '../../settings/data/members_repository.dart';
 import '../../settings/view/more_page.dart';
-import '../../sheet_import/view/contributions_page.dart';
+import '../../subscriptions/view/subscriptions_page.dart';
 
 class _Tab {
   const _Tab(this.label, this.icon, this.selectedIcon);
@@ -18,7 +18,7 @@ class _Tab {
 const _tabs = [
   _Tab('الرئيسية', Icons.dashboard_outlined, Icons.dashboard),
   _Tab('الشقق', Icons.apartment_outlined, Icons.apartment),
-  _Tab('الاشتراكات', Icons.receipt_long_outlined, Icons.receipt_long),
+  _Tab('الاشتراكات', Icons.event_available_outlined, Icons.event_available),
   _Tab('المشاريع', Icons.savings_outlined, Icons.savings),
   _Tab('المزيد', Icons.menu, Icons.menu),
 ];
@@ -34,17 +34,19 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  void _open(int i) => setState(() => _index = i);
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 840;
     final body = IndexedStack(
       index: _index,
-      children: const [
-        _DashboardPlaceholder(),
-        ApartmentsPage(),
-        ContributionsPage(projects: false),
-        ContributionsPage(projects: true),
-        MorePage(),
+      children: [
+        DashboardPage(onOpenTab: _open),
+        const ApartmentsPage(),
+        const SubscriptionsPage(),
+        const ProjectsPage(),
+        const MorePage(),
       ],
     );
 
@@ -63,7 +65,7 @@ class _HomeShellState extends State<HomeShell> {
                   NavigationRail(
                     selectedIndex: _index,
                     labelType: NavigationRailLabelType.all,
-                    onDestinationSelected: (i) => setState(() => _index = i),
+                    onDestinationSelected: _open,
                     destinations: [
                       for (final t in _tabs)
                         NavigationRailDestination(
@@ -83,7 +85,7 @@ class _HomeShellState extends State<HomeShell> {
           ? null
           : NavigationBar(
               selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
+              onDestinationSelected: _open,
               destinations: [
                 for (final t in _tabs)
                   NavigationDestination(
@@ -93,83 +95,6 @@ class _HomeShellState extends State<HomeShell> {
                   ),
               ],
             ),
-    );
-  }
-}
-
-/// Until the ledger exists there are no financial figures to show, so the
-/// dashboard only summarises the apartments and says so plainly.
-class _DashboardPlaceholder extends StatelessWidget {
-  const _DashboardPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return BlocBuilder<ApartmentsCubit, ApartmentsState>(
-      builder: (context, state) {
-        final apartments = state is ApartmentsLoaded
-            ? state.apartments
-            : const <Apartment>[];
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('الشقق', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 24,
-                      runSpacing: 12,
-                      children: [
-                        _Stat('الإجمالي', apartments.length),
-                        for (final s in ApartmentStatus.values)
-                          _Stat(
-                            s.label,
-                            apartments.where((a) => a.status == s).length,
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('لا توجد بيانات مالية بعد'),
-                subtitle: Text(
-                  'الأرصدة والتحصيلات والمصروفات تظهر هنا بعد إضافة سجل '
-                  'الحركات واستيراد ملف الإكسل.',
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat(this.label, this.value);
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('$value', style: theme.textTheme.headlineSmall),
-        Text(label, style: theme.textTheme.bodySmall),
-      ],
     );
   }
 }

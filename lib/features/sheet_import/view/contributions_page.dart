@@ -9,10 +9,13 @@ import '../data/import_item.dart';
 /// Contributions as recorded in the old spreadsheet: one row per apartment
 /// for the chosen month (or project), the total and the sheet's notes.
 class ContributionsPage extends StatefulWidget {
-  const ContributionsPage({super.key, required this.projects});
+  const ContributionsPage({super.key, required this.projects, this.sheetGid});
 
   /// Show the special-contribution sheets instead of the monthly ones.
   final bool projects;
+
+  /// Show only this sheet, without the sheet picker.
+  final String? sheetGid;
 
   @override
   State<ContributionsPage> createState() => _ContributionsPageState();
@@ -53,7 +56,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
               (a, b) =>
                   (a.period ?? a.sheetName).compareTo(b.period ?? b.sheetName),
             );
-        final gid = _sheetGid ?? _defaultSheet(sheets, all);
+        final gid = widget.sheetGid ?? _sheetGid ?? _defaultSheet(sheets, all);
         final items = all.where((i) => i.sheetGid == gid).toList()
           ..sort(
             (a, b) => a.row != b.row
@@ -79,24 +82,26 @@ class _ContributionsPageState extends State<ContributionsPage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: DropdownButtonFormField<String>(
-                    key: ValueKey(gid),
-                    initialValue: gid,
-                    decoration: InputDecoration(
-                      labelText: widget.projects ? 'المشروع' : 'الشهر',
+                if (widget.sheetGid == null)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey(gid),
+                      initialValue: gid,
+                      decoration: InputDecoration(
+                        labelText: widget.projects ? 'المشروع' : 'الشهر',
+                      ),
+                      items: [
+                        for (final s in sheets)
+                          DropdownMenuItem(
+                            value: s.sheetGid,
+                            child: Text(s.sheetName),
+                          ),
+                      ],
+                      onChanged: (v) => setState(() => _sheetGid = v),
                     ),
-                    items: [
-                      for (final s in sheets)
-                        DropdownMenuItem(
-                          value: s.sheetGid,
-                          child: Text(s.sheetName),
-                        ),
-                    ],
-                    onChanged: (v) => setState(() => _sheetGid = v),
                   ),
-                ),
+                if (widget.sheetGid != null) const SizedBox(height: 16),
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   child: ListTile(
@@ -171,35 +176,13 @@ class _ApartmentRow extends StatelessWidget {
   final ImportItem sheet;
   final List<ImportItem> items;
 
-  Future<void> _edit(BuildContext context, ImportItem? existing) async {
-    final session = context.read<SessionCubit>().state;
-    if (session is! SessionActive) return;
-    final repo = context.read<ImportRepository>();
-    final messenger = ScaffoldMessenger.of(context);
-    final text = await showDialog<String>(
-      context: context,
-      builder: (_) => _ContributionDialog(
-        title: 'شقة ${apartment.number} · ${sheet.sheetName}',
-        initial: existing?.text ?? '',
-        monthly: sheet.period != null,
-      ),
-    );
-    if (text == null || text == (existing?.text ?? '')) return;
-    try {
-      await repo.saveContribution(
+  Future<void> _edit(BuildContext context, ImportItem? existing) =>
+      editSheetContribution(
+        context,
         sheet: sheet,
         existing: existing,
-        apartmentNumber: apartment.number,
-        text: text,
-        byUid: session.user.uid,
+        apartment: apartment,
       );
-      messenger.showSnackBar(const SnackBar(content: Text('تم حفظ التعديل')));
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('تعذر الحفظ، حاول مرة أخرى')),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -250,6 +233,42 @@ class _ApartmentRow extends StatelessWidget {
         ],
       ),
       onTap: () => _edit(context, existing),
+    );
+  }
+}
+
+/// Edits an apartment's value in a spreadsheet month or project.
+Future<void> editSheetContribution(
+  BuildContext context, {
+  required ImportItem sheet,
+  required ImportItem? existing,
+  required Apartment apartment,
+}) async {
+  final session = context.read<SessionCubit>().state;
+  if (session is! SessionActive) return;
+  final repo = context.read<ImportRepository>();
+  final messenger = ScaffoldMessenger.of(context);
+  final text = await showDialog<String>(
+    context: context,
+    builder: (_) => _ContributionDialog(
+      title: 'شقة ${apartment.number} · ${sheet.sheetName}',
+      initial: existing?.text ?? '',
+      monthly: sheet.period != null,
+    ),
+  );
+  if (text == null || text == (existing?.text ?? '')) return;
+  try {
+    await repo.saveContribution(
+      sheet: sheet,
+      existing: existing,
+      apartmentNumber: apartment.number,
+      text: text,
+      byUid: session.user.uid,
+    );
+    messenger.showSnackBar(const SnackBar(content: Text('تم حفظ التعديل')));
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('تعذر الحفظ، حاول مرة أخرى')),
     );
   }
 }
