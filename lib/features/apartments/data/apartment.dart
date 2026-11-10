@@ -108,6 +108,22 @@ class Apartment extends Equatable {
     _ => 'الدور $floor',
   };
 
+  bool get hasOwner => contacts.any(
+    (c) => c.kind == ContactKind.owner && c.name.trim().isNotEmpty,
+  );
+
+  /// Has a renter registered beside the owner.
+  bool get isRented => contacts.any(
+    (c) => c.kind == ContactKind.tenant && c.name.trim().isNotEmpty,
+  );
+
+  /// In use: someone is registered and the unit is neither vacant nor
+  /// still undelivered.
+  bool get inService =>
+      contacts.any((c) => c.name.trim().isNotEmpty) &&
+      status != ApartmentStatus.notHandedOver &&
+      status != ApartmentStatus.vacant;
+
   /// Contacts that have a phone number, owners first.
   List<Contact> get callableContacts => [
     ...contacts.where(

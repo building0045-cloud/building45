@@ -82,6 +82,8 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             const SizedBox(height: 16),
+            _ApartmentStats(apartments: apartments),
+            const SizedBox(height: 16),
             StreamBuilder<List<ImportItem>>(
               stream: _sheet,
               builder: (context, snap) {
@@ -322,6 +324,95 @@ class _MiniStat extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ApartmentStats extends StatelessWidget {
+  const _ApartmentStats({required this.apartments});
+
+  final List<Apartment> apartments;
+
+  @override
+  Widget build(BuildContext context) {
+    final inService = apartments.where((a) => a.inService).length;
+    final rented = apartments.where((a) => a.inService && a.isRented).length;
+    final out = apartments.length - inService;
+    return Row(
+      children: [
+        Expanded(
+          child: _StatTile(
+            icon: Icons.home_outlined,
+            label: 'في الخدمة',
+            value: inService,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatTile(
+            icon: Icons.key_outlined,
+            label: 'مؤجرة',
+            value: rented,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatTile(
+            icon: Icons.no_meeting_room_outlined,
+            label: 'غير مستخدمة',
+            value: out,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.accent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.ink),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              toArabicDigits('$value'),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

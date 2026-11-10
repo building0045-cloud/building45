@@ -15,48 +15,34 @@ class ApartmentsPage extends StatefulWidget {
 }
 
 class _ApartmentsPageState extends State<ApartmentsPage> {
-  String _query = '';
-  ApartmentStatus? _status;
+  /// null = all; otherwise 'rented' or an [ApartmentStatus] name.
+  String? _filter;
 
-  bool _matches(Apartment a) {
-    if (_status != null && a.status != _status) return false;
-    final q = _query.trim();
-    if (q.isEmpty) return true;
-    return '${a.number}' == q ||
-        a.contacts.any((c) => c.name.contains(q) || c.phone.contains(q));
-  }
+  bool _matches(Apartment a) => switch (_filter) {
+    null => true,
+    'rented' => a.isRented,
+    final status => a.status.name == status,
+  };
+
+  Widget _chip(String label, String? value) => ChoiceChip(
+    label: Text(label),
+    selected: _filter == value,
+    onSelected: (_) => setState(() => _filter = value),
+  );
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'ابحث برقم الشقة أو الاسم أو الهاتف',
-            ),
-            onChanged: (v) => setState(() => _query = v),
-          ),
-        ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             spacing: 8,
             children: [
-              ChoiceChip(
-                label: const Text('الكل'),
-                selected: _status == null,
-                onSelected: (_) => setState(() => _status = null),
-              ),
-              for (final s in ApartmentStatus.values)
-                ChoiceChip(
-                  label: Text(s.label),
-                  selected: _status == s,
-                  onSelected: (_) => setState(() => _status = s),
-                ),
+              _chip('الكل', null),
+              _chip('مؤجرة', 'rented'),
+              for (final s in ApartmentStatus.values) _chip(s.label, s.name),
             ],
           ),
         ),
@@ -170,7 +156,11 @@ class _ApartmentTile extends StatelessWidget {
       leading: CircleAvatar(child: Text('${a.number}')),
       title: Text(a.displayName ?? 'غير معروف'),
       subtitle: Text(
-        [a.status.label, if (!a.feeEligible) 'معفاة من الاشتراك'].join(' · '),
+        [
+          a.status.label,
+          if (a.isRented) 'مؤجرة',
+          if (!a.feeEligible) 'معفاة من الاشتراك',
+        ].join(' · '),
       ),
       trailing: hasPhone
           ? Row(

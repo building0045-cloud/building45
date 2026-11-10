@@ -16,7 +16,6 @@ import 'features/ledger/cubit/ledger_cubit.dart';
 import 'features/ledger/data/ledger_repository.dart';
 import 'features/ledger/view/ledger_page.dart';
 import 'features/projects/view/projects_page.dart';
-import 'features/public/view/public_page.dart';
 import 'features/settings/data/members_repository.dart';
 import 'features/sheet_import/data/import_item.dart';
 import 'features/sheet_import/view/sheet_data_page.dart';
@@ -55,7 +54,10 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
       return null;
     },
     routes: [
-      GoRoute(path: '/', builder: (_, _) => const PublicPage()),
+      GoRoute(
+        path: '/',
+        redirect: (_, _) => _session.state is SessionActive ? '/app' : '/login',
+      ),
       GoRoute(path: '/login', builder: (_, _) => const AuthGate()),
       // Staff-only data is loaded only once a staff session is active.
       ShellRoute(
@@ -111,7 +113,7 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
       child: BlocProvider.value(
         value: _session,
         child: MaterialApp.router(
-          title: 'مصروفات العمارة',
+          title: 'عمارة ٤٥',
           debugShowCheckedModeBanner: false,
           routerConfig: _router,
           locale: const Locale('ar', 'EG'),

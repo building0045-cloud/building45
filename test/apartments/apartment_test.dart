@@ -56,5 +56,30 @@ void main() {
       expect(apartment.copyWith(floor: () => null).floor, isNull);
       expect(apartment.copyWith(notes: 'x').floor, 1);
     });
+
+    test('in service, rented and not in use', () {
+      const owner = Contact(name: 'مالك', kind: ContactKind.owner);
+      const tenant = Contact(name: 'مستأجر', kind: ContactKind.tenant);
+
+      const rented = Apartment(
+        id: '1',
+        number: 1,
+        status: ApartmentStatus.occupied,
+        contacts: [owner, tenant],
+      );
+      const ownerOnly = Apartment(id: '2', number: 2, contacts: [owner]);
+      const nobody = Apartment(id: '3', number: 3);
+      const undelivered = Apartment(
+        id: '4',
+        number: 4,
+        status: ApartmentStatus.notHandedOver,
+        contacts: [owner],
+      );
+
+      expect([rented.inService, rented.isRented], [true, true]);
+      expect([ownerOnly.inService, ownerOnly.isRented], [true, false]);
+      expect(nobody.inService, isFalse);
+      expect(undelivered.inService, isFalse);
+    });
   });
 }

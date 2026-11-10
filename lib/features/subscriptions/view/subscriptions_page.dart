@@ -61,26 +61,30 @@ class MonthSummary {
   int get collected => statuses.fold(0, (sum, s) => sum + s.paidAmount);
 }
 
+/// Subscription status for [period] of the apartments in use, plus any
+/// other apartment that already has a payment that month.
 MonthSummary summarizeMonth(
   String period,
   List<Apartment> apartments,
   LedgerLoaded? ledger,
   List<ImportItem> sheetItems,
-) => MonthSummary([
-  for (final a in apartments)
-    SubscriptionStatus(
-      apartment: a,
-      payment: ledger?.subscriptionFor(period, a.number),
-      sheetRecord: sheetItems
-          .where(
-            (i) =>
-                i.period == period &&
-                i.apartmentNumber == a.number &&
-                i.col == 3,
-          )
-          .firstOrNull,
-    ),
-]);
+) => MonthSummary(
+  [
+    for (final a in apartments)
+      SubscriptionStatus(
+        apartment: a,
+        payment: ledger?.subscriptionFor(period, a.number),
+        sheetRecord: sheetItems
+            .where(
+              (i) =>
+                  i.period == period &&
+                  i.apartmentNumber == a.number &&
+                  i.col == 3,
+            )
+            .firstOrNull,
+      ),
+  ].where((s) => s.apartment.inService || s.isPaid).toList(),
+);
 
 class SubscriptionsPage extends StatefulWidget {
   const SubscriptionsPage({super.key});
@@ -193,7 +197,7 @@ class _MonthPicker extends StatelessWidget {
                         _clamp(inYear(year - 1, periodMonth(period))),
                       )
                     : null,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(Icons.chevron_left),
               ),
               Text(toArabicDigits('$year'), style: theme.textTheme.titleLarge),
               IconButton(
@@ -203,7 +207,7 @@ class _MonthPicker extends StatelessWidget {
                         _clamp(inYear(year + 1, periodMonth(period))),
                       )
                     : null,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(Icons.chevron_right),
               ),
             ],
           ),

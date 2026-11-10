@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../cubit/session_cubit.dart';
 import '../data/auth_repository.dart';
@@ -13,29 +12,39 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('دخول الإدارة'),
-        leading: IconButton(
-          tooltip: 'الصفحة العامة',
-          icon: const Icon(Icons.home_outlined),
-          onPressed: () => context.go('/'),
-        ),
-      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: BlocBuilder<SessionCubit, SessionState>(
-                builder: (context, state) => switch (state) {
-                  SessionLoading() ||
-                  SessionActive() => const CircularProgressIndicator(),
-                  SessionSignedOut() => const _LoginForm(),
-                  SessionNeedsSetup() => const _SetupForm(),
-                  SessionNoAccess() => _NoAccess(state: state),
-                  SessionFailure() => const _Failure(),
-                },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: Image.asset(
+                      'assets/images/building.jpg',
+                      height: 260,
+                      fit: BoxFit.cover,
+                      alignment: const Alignment(0, -0.8),
+                      semanticLabel: 'مدخل عمارة ٤٥',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  BlocBuilder<SessionCubit, SessionState>(
+                    builder: (context, state) => switch (state) {
+                      SessionLoading() || SessionActive() => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      SessionSignedOut() => const _LoginForm(),
+                      SessionNeedsSetup() => const _SetupForm(),
+                      SessionNoAccess() => _NoAccess(state: state),
+                      SessionFailure() => const _Failure(),
+                    },
+                  ),
+                ],
               ),
             ),
           ),

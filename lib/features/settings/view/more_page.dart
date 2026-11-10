@@ -161,38 +161,11 @@ class _MemberTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMe = member.uid == me.uid;
-    return SwitchListTile(
+    return ListTile(
       contentPadding: EdgeInsets.zero,
+      leading: const CircleAvatar(child: Icon(Icons.person_outline)),
       title: Text(isMe ? '${member.name} (أنت)' : member.name),
-      subtitle: Text(
-        '${member.role.label} · ${member.active ? 'مفعّل' : 'موقوف'}',
-      ),
-      value: member.active,
-      // An admin cannot lock themselves out.
-      onChanged: isMe
-          ? null
-          : (active) async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await context.read<MembersRepository>().update(
-                  member,
-                  Member(
-                    uid: member.uid,
-                    name: member.name,
-                    email: member.email,
-                    role: member.role,
-                    active: active,
-                  ),
-                  byUid: me.uid,
-                );
-              } catch (_) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('غير مسموح بتعديل صلاحية هذا المستخدم'),
-                  ),
-                );
-              }
-            },
+      subtitle: Text('${member.role.label}${member.active ? '' : ' · موقوف'}'),
     );
   }
 }
