@@ -152,3 +152,52 @@ test('transactions: staff record, nobody deletes, only admins touch the opening 
     await assertFails(getDoc(doc(db, `${B}/transactions/e1`)));
   }
 });
+
+test('subscription locks: a month can be paid once, and only by a matching payment', async () => {
+  const t = as('treasurer');
+  const pay = (id, periods, extra = {}) => ({
+    type: 'subscription', amount: periods.length * 10000, createdBy: 'treasurer', apartmentNumber: 4,
+    periods, allocations: periods.map((p) => ({ period: p, amount: 10000 })), voided: false, ...extra,
+  });
+  const lock = (period, txId, apt = 4) => ({ period, apartmentNumber: apt, txId });
+  const batchOf = async (db, writes) => {
+    const { writeBatch } = await import('firebase/firestore');
+    const b = writeBatch(db);
+    for (const [path, data, op] of writes) op === 'delete' ? b.delete(doc(db, path)) : b.set(doc(db, path), data);
+    return b.commit();
+  };
+
+  // Six months paid in one payment.
+  const six = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06'];
+  await assertSucceeds(batchOf(t, [
+    [`${B}/transactions/r1`, pay('r1', six)],
+    ...six.map((p) => [`${B}/subscriptionLocks/${p}_4`, lock(p, 'r1')]),
+  ]));
+
+  // A second payment overlapping March is refused as a whole.
+  await assertFails(batchOf(t, [
+    [`${B}/transactions/r2`, pay('r2', ['2027-03', '2027-07'])],
+    [`${B}/subscriptionLocks/2027-03_4`, lock('2027-03', 'r2')],
+    [`${B}/subscriptionLocks/2027-07_4`, lock('2027-07', 'r2')],
+  ]));
+  const { getDoc: g } = await import('firebase/firestore');
+  await assertFails(g(doc(anon(), `${B}/subscriptionLocks/2027-03_4`)));
+
+  // A lock must belong to a payment that covers that month and apartment.
+  await assertFails(setDoc(doc(t, `${B}/subscriptionLocks/2027-08_4`), lock('2027-08', 'r1')));
+  await assertFails(setDoc(doc(t, `${B}/subscriptionLocks/2027-08_5`), lock('2027-08', 'r1', 5)));
+  await assertFails(setDoc(doc(t, `${B}/subscriptionLocks/x`), lock('2027-01', 'r1')));
+
+  // Locks of an active payment cannot be removed on their own.
+  await assertFails(deleteDoc(doc(t, `${B}/subscriptionLocks/2027-01_4`)));
+
+  // Cancelling the payment releases all its months.
+  await assertSucceeds(batchOf(t, [
+    [`${B}/transactions/r1`, pay('r1', six, { voided: true })],
+    ...six.map((p) => [`${B}/subscriptionLocks/${p}_4`, null, 'delete']),
+  ]));
+  await assertSucceeds(batchOf(t, [
+    [`${B}/transactions/r2`, pay('r2', ['2027-03'])],
+    [`${B}/subscriptionLocks/2027-03_4`, lock('2027-03', 'r2')],
+  ]));
+});

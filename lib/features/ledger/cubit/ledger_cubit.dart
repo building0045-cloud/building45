@@ -43,12 +43,35 @@ final class LedgerLoaded extends LedgerState {
           .where((t) => t.isOutgoing)
           .fold(0, (s, t) => s + t.amount);
 
-  /// The counted subscription payment of an apartment for a month.
-  LedgerTx? subscriptionFor(String period, int apartmentNumber) => txs
-      .where(
-        (t) => t.id == subscriptionTxId(period, apartmentNumber) && !t.voided,
-      )
-      .firstOrNull;
+  /// The counted payment covering [apartmentNumber]'s [period], and the
+  /// share of it for that month.
+  ({LedgerTx tx, int amount})? subscriptionFor(
+    String period,
+    int apartmentNumber,
+  ) {
+    for (final t in txs) {
+      if (t.voided ||
+          t.type != TxType.subscription ||
+          t.apartmentNumber != apartmentNumber) {
+        continue;
+      }
+      for (final a in t.allocations) {
+        if (a.period == period) return (tx: t, amount: a.amount);
+      }
+    }
+    return null;
+  }
+
+  /// Months of [apartmentNumber] covered by counted payments other than
+  /// [exceptTxId].
+  Set<String> paidPeriods(int apartmentNumber, {String? exceptTxId}) => {
+    for (final t in txs)
+      if (!t.voided &&
+          t.type == TxType.subscription &&
+          t.apartmentNumber == apartmentNumber &&
+          t.id != exceptTxId)
+        ...t.periods,
+  };
 
   @override
   List<Object?> get props => [txs];

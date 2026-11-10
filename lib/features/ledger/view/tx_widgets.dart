@@ -4,7 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/money.dart';
 import '../../../core/periods.dart';
 import '../../auth/cubit/session_cubit.dart';
+import '../../apartments/cubit/apartments_cubit.dart';
+import '../../subscriptions/view/payment_sheet.dart';
 import '../cubit/ledger_cubit.dart';
+import '../data/ledger_repository.dart';
 import '../data/ledger_tx.dart';
 
 const incomeColor = Color(0xFF16A34A);
@@ -70,6 +73,12 @@ Future<void> showTxActions(BuildContext context, LedgerTx tx) async {
     try {
       await action();
       messenger.showSnackBar(SnackBar(content: Text(done)));
+    } on MonthAlreadyPaid {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('لا يمكن الاسترجاع: أحد الشهور دُفع بدفعة أخرى'),
+        ),
+      );
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('تعذر الحفظ، حاول مرة أخرى')),
@@ -98,10 +107,22 @@ Future<void> showTxActions(BuildContext context, LedgerTx tx) async {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
+          if (tx.type == TxType.subscription && tx.periods.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.date_range_outlined),
+              title: Text('يغطي: ${describeMonths(tx.periods)}'),
+              subtitle: tx.payerName.isEmpty
+                  ? null
+                  : Text('دفعها: ${tx.payerName}'),
+            ),
           if (canEdit && !tx.voided)
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('تعديل المبلغ'),
+              title: Text(
+                tx.type == TxType.subscription
+                    ? 'تعديل الدفعة'
+                    : 'تعديل المبلغ',
+              ),
               onTap: () => Navigator.of(context).pop('edit'),
             ),
           if (canEdit && tx.type != TxType.opening)
@@ -120,6 +141,14 @@ Future<void> showTxActions(BuildContext context, LedgerTx tx) async {
   if (choice == null || !context.mounted) return;
   final uid = session.user.uid;
   switch (choice) {
+    case 'edit' when tx.type == TxType.subscription:
+      final apartments = context.read<ApartmentsCubit>().state;
+      final apartment = apartments is ApartmentsLoaded
+          ? apartments.byId('${tx.apartmentNumber}')
+          : null;
+      if (apartment != null) {
+        await showPaymentSheet(context, apartment: apartment, existing: tx);
+      }
     case 'edit':
       final amount = await askAmount(
         context,

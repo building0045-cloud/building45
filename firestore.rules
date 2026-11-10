@@ -86,6 +86,25 @@ service cloud.firestore {
           && validAmount();
       }
 
+      // One lock per apartment and month while a subscription payment covers
+      // it. Locks are never updated, so a month cannot be paid twice; they
+      // must match the payment written in the same batch.
+      match /subscriptionLocks/{id} {
+        function txAfter(txId) {
+          return getAfter(/databases/$(database)/documents/buildings/$(b)/transactions/$(txId));
+        }
+        allow read: if isStaff();
+        allow create: if isStaff()
+          && id == request.resource.data.period + '_' + string(request.resource.data.apartmentNumber)
+          && txAfter(request.resource.data.txId).data.type == 'subscription'
+          && txAfter(request.resource.data.txId).data.voided == false
+          && txAfter(request.resource.data.txId).data.apartmentNumber == request.resource.data.apartmentNumber
+          && request.resource.data.period in txAfter(request.resource.data.txId).data.periods;
+        allow delete: if isStaff()
+          && (txAfter(resource.data.txId).data.voided == true
+              || !(resource.data.period in txAfter(resource.data.txId).data.periods));
+      }
+
       // Append-only history of financial and permission changes.
       match /auditLog/{id} {
         allow read: if isStaff();

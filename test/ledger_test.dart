@@ -12,7 +12,7 @@ LedgerTx _tx(
   int amount, {
   bool voided = false,
   DateTime? date,
-  String? period,
+  List<Allocation> allocations = const [],
   int? apt,
 }) => LedgerTx(
   id: id,
@@ -20,7 +20,7 @@ LedgerTx _tx(
   amount: amount,
   date: date ?? DateTime(2026, 11, 10),
   voided: voided,
-  period: period,
+  allocations: allocations,
   apartmentNumber: apt,
 );
 
@@ -50,24 +50,88 @@ void main() {
       expect(state.expensesIn('2026-10'), 5000);
     });
 
-    test(
-      'a month subscription has one fixed id and cancelled ones do not count',
-      () {
-        final id = subscriptionTxId('2027-01', 7);
-        expect(id, 'sub_2027-01_7');
+    test('a single month payment has one fixed id', () {
+      expect(subscriptionTxId('2027-01', 7), 'sub_2027-01_7');
+    });
+  });
 
-        final paid = LedgerLoaded([
-          _tx(id, TxType.subscription, 10000, period: '2027-01', apt: 7),
-        ]);
-        final cancelled = LedgerLoaded([
-          _tx(id, TxType.subscription, 10000, voided: true),
-        ]);
+  group('multi-month payments', () {
+    final sixMonths = [for (var i = 0; i < 6; i++) shiftPeriod('2027-01', i)];
 
-        expect(paid.subscriptionFor('2027-01', 7)?.amount, 10000);
-        expect(paid.subscriptionFor('2027-02', 7), isNull);
-        expect(cancelled.subscriptionFor('2027-01', 7), isNull);
-      },
-    );
+    test('600 for six months counts once in the balance and 100 per month', () {
+      final payment = _tx(
+        'r1',
+        TxType.subscription,
+        60000,
+        apt: 4,
+        allocations: splitPayment(60000, sixMonths, 10000)!,
+      );
+      final state = LedgerLoaded([_tx('o', TxType.opening, 285000), payment]);
+
+      expect(state.balance, 285000 + 60000);
+      expect(state.incomeIn('2026-11'), 60000);
+      for (final p in sixMonths) {
+        expect(state.subscriptionFor(p, 4)?.amount, 10000);
+      }
+      expect(state.subscriptionFor('2027-07', 4), isNull);
+      expect(state.subscriptionFor('2027-01', 5), isNull);
+      expect(state.paidPeriods(4), sixMonths.toSet());
+      expect(state.paidPeriods(4, exceptTxId: 'r1'), isEmpty);
+    });
+
+    test('cancelling the payment reopens all its months', () {
+      final state = LedgerLoaded([
+        _tx(
+          'r1',
+          TxType.subscription,
+          60000,
+          apt: 4,
+          voided: true,
+          allocations: splitPayment(60000, sixMonths, 10000)!,
+        ),
+      ]);
+
+      expect(state.balance, 0);
+      expect(state.paidPeriods(4), isEmpty);
+      expect(state.subscriptionFor('2027-03', 4), isNull);
+    });
+
+    test('a partial amount leaves the last month partial', () {
+      final split = splitPayment(55000, sixMonths, 10000)!;
+
+      expect(
+        [for (final a in split) a.amount],
+        [10000, 10000, 10000, 10000, 10000, 5000],
+      );
+    });
+
+    test('amounts that do not fit the months are rejected', () {
+      expect(splitPayment(70000, sixMonths, 10000), isNull);
+      expect(splitPayment(50000, sixMonths, 10000), isNull);
+      expect(splitPayment(0, sixMonths, 10000), isNull);
+      expect(splitPayment(10000, const [], 10000), isNull);
+    });
+
+    test('old single-month entries without allocations still count', () {
+      final tx = LedgerTx.fromMap('sub_2026-11_7', {
+        'type': 'subscription',
+        'amount': 10000,
+        'period': '2026-11',
+        'apartmentNumber': 7,
+      });
+
+      expect(tx.allocations, [const Allocation('2026-11', 10000)]);
+      expect(LedgerLoaded([tx]).subscriptionFor('2026-11', 7)?.amount, 10000);
+    });
+
+    test('describes the months covered', () {
+      expect(describeMonths(['2027-01']), 'يناير ٢٠٢٧');
+      expect(
+        describeMonths(['2027-01', '2027-02']),
+        'شهرين (يناير ٢٠٢٧ – فبراير ٢٠٢٧)',
+      );
+      expect(describeMonths(sixMonths), '٦ شهور (يناير ٢٠٢٧ – يونيو ٢٠٢٧)');
+    });
   });
 
   group('money', () {
@@ -87,7 +151,7 @@ void main() {
     test('cross year boundaries', () {
       expect(shiftPeriod('2026-12', 1), '2027-01');
       expect(shiftPeriod('2027-01', -1), '2026-12');
-      expect(lastOpenPeriod(DateTime(2026, 12, 15)), '2027-01');
+      expect(lastOpenPeriod(DateTime(2026, 12, 15)), '2027-12');
       expect(periodLabel('2027-01'), 'يناير ٢٠٢٧');
     });
   });

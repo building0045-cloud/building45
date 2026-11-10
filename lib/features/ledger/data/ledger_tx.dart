@@ -33,8 +33,31 @@ enum ExpenseCategory {
       ExpenseCategory.values.where((c) => c.name == v).firstOrNull;
 }
 
+/// The share of a subscription payment that covers one month.
+class Allocation extends Equatable {
+  const Allocation(this.period, this.amount);
+
+  factory Allocation.fromMap(Map<String, dynamic> m) =>
+      Allocation(m['period'] as String, (m['amount'] as num).toInt());
+
+  /// `yyyy-MM`.
+  final String period;
+
+  /// Piastres.
+  final int amount;
+
+  Map<String, dynamic> toMap() => {'period': period, 'amount': amount};
+
+  @override
+  List<Object?> get props => [period, amount];
+}
+
 /// One money movement. Amounts are positive whole piastres; the type
 /// decides whether it adds to or takes from the balance.
+///
+/// A subscription payment is recorded once, for its full amount, and its
+/// [allocations] say which months it covers. Splitting it across months
+/// never changes the balance.
 class LedgerTx extends Equatable {
   const LedgerTx({
     required this.id,
@@ -43,24 +66,38 @@ class LedgerTx extends Equatable {
     required this.date,
     this.description = '',
     this.category,
-    this.period,
     this.apartmentNumber,
+    this.allocations = const [],
+    this.payerName = '',
+    this.payerKind = '',
     this.voided = false,
     this.createdBy = '',
   });
 
-  factory LedgerTx.fromMap(String id, JsonMap m) => LedgerTx(
-    id: id,
-    type: TxType.parse(m['type']),
-    amount: (m['amount'] as num?)?.toInt() ?? 0,
-    date: (m['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    description: m['description'] as String? ?? '',
-    category: ExpenseCategory.parse(m['category']),
-    period: m['period'] as String?,
-    apartmentNumber: (m['apartmentNumber'] as num?)?.toInt(),
-    voided: m['voided'] as bool? ?? false,
-    createdBy: m['createdBy'] as String? ?? '',
-  );
+  factory LedgerTx.fromMap(String id, JsonMap m) {
+    final amount = (m['amount'] as num?)?.toInt() ?? 0;
+    final legacyPeriod = m['period'] as String?;
+    final raw = m['allocations'] as List<dynamic>?;
+    return LedgerTx(
+      id: id,
+      type: TxType.parse(m['type']),
+      amount: amount,
+      date: (m['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      description: m['description'] as String? ?? '',
+      category: ExpenseCategory.parse(m['category']),
+      apartmentNumber: (m['apartmentNumber'] as num?)?.toInt(),
+      allocations: raw != null
+          ? [
+              for (final a in raw)
+                Allocation.fromMap(Map<String, dynamic>.from(a as Map)),
+            ]
+          : [if (legacyPeriod != null) Allocation(legacyPeriod, amount)],
+      payerName: m['payerName'] as String? ?? '',
+      payerKind: m['payerKind'] as String? ?? '',
+      voided: m['voided'] as bool? ?? false,
+      createdBy: m['createdBy'] as String? ?? '',
+    );
+  }
 
   final String id;
   final TxType type;
@@ -68,10 +105,16 @@ class LedgerTx extends Equatable {
   final DateTime date;
   final String description;
   final ExpenseCategory? category;
-
-  /// Month a subscription payment covers.
-  final String? period;
   final int? apartmentNumber;
+
+  /// Months a subscription payment covers, in order.
+  final List<Allocation> allocations;
+
+  /// Who handed over the money (subscription payments).
+  final String payerName;
+
+  /// `owner`, `tenant` or empty.
+  final String payerKind;
 
   /// Cancelled entries stay in the log but do not count.
   final bool voided;
@@ -79,12 +122,15 @@ class LedgerTx extends Equatable {
 
   bool get isOutgoing => type == TxType.expense;
 
+  List<String> get periods => [for (final a in allocations) a.period];
+
   /// Effect on the balance.
   int get signedAmount => voided ? 0 : (isOutgoing ? -amount : amount);
 
   IconData get icon => switch (type) {
     TxType.opening => Icons.account_balance_wallet_outlined,
-    TxType.subscription => Icons.home_outlined,
+    TxType.subscription =>
+      allocations.length > 1 ? Icons.date_range_outlined : Icons.home_outlined,
     TxType.income => Icons.south_west,
     TxType.expense => category?.icon ?? Icons.north_east,
   };
@@ -98,8 +144,13 @@ class LedgerTx extends Equatable {
     'date': Timestamp.fromDate(date),
     'description': description,
     'category': category?.name,
-    'period': period,
     'apartmentNumber': apartmentNumber,
+    if (type == TxType.subscription) ...{
+      'allocations': [for (final a in allocations) a.toMap()],
+      'periods': periods,
+      'payerName': payerName,
+      'payerKind': payerKind,
+    },
     'voided': voided,
     'createdBy': createdBy,
   };
@@ -112,8 +163,10 @@ class LedgerTx extends Equatable {
     date,
     description,
     category,
-    period,
     apartmentNumber,
+    allocations,
+    payerName,
+    payerKind,
     voided,
   ];
 }
@@ -121,3 +174,16 @@ class LedgerTx extends Equatable {
 /// Sum of all entries that count.
 int balanceOf(Iterable<LedgerTx> txs) =>
     txs.fold(0, (total, t) => total + t.signedAmount);
+
+/// Splits [total] over [periods]: [fee] for each month in order, the last
+/// month gets what is left. Returns null when [total] does not reach the
+/// last month or exceeds [fee] for every month.
+List<Allocation>? splitPayment(int total, List<String> periods, int fee) {
+  if (periods.isEmpty || total <= 0) return null;
+  final n = periods.length;
+  if (total > n * fee || total <= (n - 1) * fee) return null;
+  return [
+    for (var i = 0; i < n; i++)
+      Allocation(periods[i], i < n - 1 ? fee : total - (n - 1) * fee),
+  ];
+}

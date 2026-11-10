@@ -12,19 +12,36 @@ import '../../ledger/data/ledger_tx.dart';
 import '../../ledger/view/tx_widgets.dart';
 import '../../sheet_import/data/import_item.dart';
 import '../../sheet_import/view/contributions_page.dart';
+import 'payment_sheet.dart';
 
 /// One apartment's subscription for one month.
 class SubscriptionStatus {
+  factory SubscriptionStatus.of(
+    Apartment apartment,
+    ({LedgerTx tx, int amount})? paid, {
+    ImportItem? sheetRecord,
+  }) => SubscriptionStatus(
+    apartment: apartment,
+    payment: paid?.tx,
+    share: paid?.amount ?? 0,
+    sheetRecord: sheetRecord,
+  );
+
   const SubscriptionStatus({
     required this.apartment,
     this.payment,
+    this.share = 0,
     this.sheetRecord,
   });
 
   final Apartment apartment;
 
-  /// Collected in the app (counts in the balance).
+  /// Payment recorded in the app that covers this month (counts in the
+  /// balance), possibly together with other months.
   final LedgerTx? payment;
+
+  /// Part of [payment] that belongs to this month.
+  final int share;
 
   /// What the old spreadsheet says for that month, if anything.
   final ImportItem? sheetRecord;
@@ -44,9 +61,9 @@ class SubscriptionStatus {
   bool get isPaid => payment != null || coveredBySheet;
 
   /// Paid amount, from the app or a number in the sheet.
-  int get paidAmount =>
-      payment?.amount ??
-      (coveredBySheet ? ((sheetRecord!.amount ?? 0) * 100).round() : 0);
+  int get paidAmount => payment != null
+      ? share
+      : (coveredBySheet ? ((sheetRecord!.amount ?? 0) * 100).round() : 0);
 }
 
 class MonthSummary {
@@ -71,9 +88,9 @@ MonthSummary summarizeMonth(
 ) => MonthSummary(
   [
     for (final a in apartments)
-      SubscriptionStatus(
-        apartment: a,
-        payment: ledger?.subscriptionFor(period, a.number),
+      SubscriptionStatus.of(
+        a,
+        ledger?.subscriptionFor(period, a.number),
         sheetRecord: sheetItems
             .where(
               (i) =>
@@ -368,7 +385,7 @@ class _Row extends StatelessWidget {
               onPressed: () async {
                 final ledger = context.read<LedgerCubit>().state;
                 final tx = ledger is LedgerLoaded
-                    ? ledger.subscriptionFor(period, n)
+                    ? ledger.subscriptionFor(period, n)?.tx
                     : null;
                 if (tx != null) {
                   await repo.setVoided(tx, true, byUid: session.user.uid);
@@ -377,6 +394,10 @@ class _Row extends StatelessWidget {
             ),
           ),
         );
+    } on MonthAlreadyPaid {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('هذا الشهر مدفوع بالفعل')),
+      );
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('تعذر التسجيل، حاول مرة أخرى')),
@@ -398,7 +419,7 @@ class _Row extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            formatEgp(payment.amount),
+            formatEgp(status.share),
             style: theme.textTheme.titleMedium?.copyWith(
               color: incomeColor,
               fontWeight: FontWeight.w700,
@@ -427,15 +448,30 @@ class _Row extends StatelessWidget {
     } else if (!a.feeEligible) {
       trailing = Text('معفاة', style: theme.textTheme.bodyMedium);
     } else {
-      trailing = IconButton.filledTonal(
-        tooltip: 'تحصيل ${formatEgp(fee)}',
-        icon: const Icon(Icons.check),
-        onPressed: () => _collect(context),
+      trailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'دفع عدة شهور',
+            icon: const Icon(Icons.date_range_outlined),
+            onPressed: () =>
+                showPaymentSheet(context, apartment: a, startPeriod: period),
+          ),
+          IconButton.filledTonal(
+            tooltip: 'تحصيل ${formatEgp(fee)}',
+            icon: const Icon(Icons.check),
+            onPressed: () => _collect(context),
+          ),
+        ],
       );
     }
 
     final subtitle = [
+      if (payment != null && payment.allocations.length > 1)
+        'ضمن دفعة ${describeMonths(payment.periods)}',
       if (payment != null) 'حُصّل ${formatDate(payment.date)}',
+      if (payment != null && payment.payerName.isNotEmpty)
+        'من ${payment.payerName}',
       if (payment == null && status.coveredBySheet) 'من الشيت القديم',
       if (!status.coveredBySheet && sheetText.isNotEmpty) sheetText,
     ];

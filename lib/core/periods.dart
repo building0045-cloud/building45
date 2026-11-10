@@ -35,8 +35,12 @@ String shiftPeriod(String period, int months) {
 
 String currentPeriod([DateTime? now]) => periodOf(now ?? DateTime.now());
 
-/// Latest month that can be recorded: next month, so early payments work.
-String lastOpenPeriod([DateTime? now]) => shiftPeriod(currentPeriod(now), 1);
+/// How many months ahead a subscription can be paid.
+const prepayMonths = 12;
+
+/// Latest month that can be recorded, so payments in advance work.
+String lastOpenPeriod([DateTime? now]) =>
+    shiftPeriod(currentPeriod(now), prepayMonths);
 
 String formatDate(DateTime d) =>
     '${toArabicDigits('${d.day}')} ${arabicMonths[d.month - 1]} ${toArabicDigits('${d.year}')}';

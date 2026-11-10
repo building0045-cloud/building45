@@ -8,8 +8,29 @@ import 'ledger_tx.dart';
 /// Default monthly subscription: 100 EGP.
 const defaultMonthlyFee = 10000;
 
+/// Id used when a single month is collected with the check button.
 String subscriptionTxId(String period, int apartmentNumber) =>
     'sub_${period}_$apartmentNumber';
+
+String lockId(String period, int apartmentNumber) =>
+    '${period}_$apartmentNumber';
+
+/// Arabic description of the months a payment covers.
+String describeMonths(List<String> periods) {
+  if (periods.isEmpty) return '';
+  if (periods.length == 1) return periodLabel(periods.first);
+  final first = periodLabel(periods.first);
+  final last = periodLabel(periods.last);
+  final count = periods.length == 2
+      ? 'شهرين'
+      : '${toArabicDigits('${periods.length}')} شهور';
+  return '$count ($first – $last)';
+}
+
+/// A month is already paid by another payment.
+class MonthAlreadyPaid implements Exception {
+  const MonthAlreadyPaid();
+}
 
 class LedgerRepository {
   LedgerRepository(FirebaseFirestore db) : _refs = BuildingRefs(db);
@@ -18,6 +39,11 @@ class LedgerRepository {
 
   CollectionReference<JsonMap> get _tx =>
       _refs.building.collection('transactions');
+
+  /// One document per apartment and month while a payment covers it, so the
+  /// same month can never be paid twice.
+  CollectionReference<JsonMap> get _locks =>
+      _refs.building.collection('subscriptionLocks');
   DocumentReference<JsonMap> get _fees =>
       _refs.building.collection('settings').doc('fees');
 
@@ -64,47 +90,104 @@ class LedgerRepository {
       category: category,
       createdBy: byUid,
     );
-    return _write(tx, 'expense.add', 'مصروف ${formatEgp(amount)}: ${tx.title}');
+    final ref = _tx.doc(id);
+    final batch = _refs.db.batch()
+      ..set(ref, {...tx.toMap(), 'createdAt': FieldValue.serverTimestamp()});
+    _refs.addAudit(
+      batch,
+      by: byUid,
+      action: 'expense.add',
+      target: ref.path,
+      summary: 'مصروف ${formatEgp(amount)}: ${tx.title}',
+    );
+    return batch.commit();
   }
 
-  /// Records [apartmentNumber]'s subscription for [period]. The id is fixed
-  /// per apartment and month, so the month can never be counted twice.
+  /// One-tap collection of a single month.
   Future<void> recordSubscription({
     required String period,
     required int apartmentNumber,
     required int amount,
     required String byUid,
-  }) {
-    final tx = LedgerTx(
-      id: subscriptionTxId(period, apartmentNumber),
-      type: TxType.subscription,
-      amount: amount,
-      date: DateTime.now(),
-      description: 'اشتراك ${periodLabel(period)} - شقة $apartmentNumber',
-      period: period,
-      apartmentNumber: apartmentNumber,
-      createdBy: byUid,
-    );
-    return _write(
-      tx,
-      'subscription.collect',
-      'تحصيل ${tx.description}: ${formatEgp(amount)}',
-    );
-  }
+  }) => savePayment(
+    id: subscriptionTxId(period, apartmentNumber),
+    apartmentNumber: apartmentNumber,
+    allocations: [Allocation(period, amount)],
+    date: DateTime.now(),
+    byUid: byUid,
+  );
 
-  Future<void> _write(LedgerTx tx, String action, String summary) {
-    final ref = _tx.doc(tx.id);
+  /// Records (or, with [previous], replaces) a subscription payment that
+  /// covers one or more months. Throws [MonthAlreadyPaid] when a month is
+  /// covered by another payment.
+  Future<void> savePayment({
+    required String id,
+    required int apartmentNumber,
+    required List<Allocation> allocations,
+    required DateTime date,
+    required String byUid,
+    String payerName = '',
+    String payerKind = '',
+    LedgerTx? previous,
+  }) async {
+    final periods = [for (final a in allocations) a.period];
+    final total = allocations.fold(0, (s, a) => s + a.amount);
+    final payer = payerName.isEmpty ? '' : ' من $payerName';
+    final tx = LedgerTx(
+      id: id,
+      type: TxType.subscription,
+      amount: total,
+      date: date,
+      description:
+          'اشتراك ${describeMonths(periods)} - شقة $apartmentNumber$payer',
+      apartmentNumber: apartmentNumber,
+      allocations: allocations,
+      payerName: payerName,
+      payerKind: payerKind,
+      createdBy: previous?.createdBy.isNotEmpty == true
+          ? previous!.createdBy
+          : byUid,
+    );
+    final ref = _tx.doc(id);
+    final before = previous != null && !previous.voided
+        ? previous.periods.toSet()
+        : <String>{};
     final batch = _refs.db.batch()
-      ..set(ref, {...tx.toMap(), 'createdAt': FieldValue.serverTimestamp()});
+      ..set(ref, {
+        ...tx.toMap(),
+        if (previous == null) 'createdAt': FieldValue.serverTimestamp(),
+        if (previous != null) 'editedBy': byUid,
+        if (previous != null) 'editedAt': FieldValue.serverTimestamp(),
+      });
+    for (final p in periods.where((p) => !before.contains(p))) {
+      batch.set(_locks.doc(lockId(p, apartmentNumber)), {
+        'period': p,
+        'apartmentNumber': apartmentNumber,
+        'txId': id,
+      });
+    }
+    for (final p in before.where((p) => !periods.contains(p))) {
+      batch.delete(_locks.doc(lockId(p, apartmentNumber)));
+    }
     _refs.addAudit(
       batch,
-      by: tx.createdBy,
-      action: action,
+      by: byUid,
+      action: previous == null ? 'subscription.collect' : 'subscription.edit',
       target: ref.path,
-      summary: summary,
-      after: tx.toMap()..remove('date'),
+      summary:
+          '${previous == null ? 'تحصيل' : 'تعديل'} ${tx.description}: ${formatEgp(total)}',
+      before: previous == null
+          ? null
+          : {'amount': previous.amount, 'periods': previous.periods},
+      after: {'amount': total, 'periods': periods},
     );
-    return batch.commit();
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      // A lock that already exists cannot be created again.
+      if (e.code == 'permission-denied') throw const MonthAlreadyPaid();
+      rethrow;
+    }
   }
 
   Future<void> updateAmount(LedgerTx tx, int amount, {required String byUid}) {
@@ -128,8 +211,13 @@ class LedgerRepository {
     return batch.commit();
   }
 
-  /// Cancels (or restores) an entry. It stays in the log either way.
-  Future<void> setVoided(LedgerTx tx, bool voided, {required String byUid}) {
+  /// Cancels (or restores) an entry. It stays in the log either way; the
+  /// months of a cancelled subscription payment become unpaid again.
+  Future<void> setVoided(
+    LedgerTx tx,
+    bool voided, {
+    required String byUid,
+  }) async {
     final ref = _tx.doc(tx.id);
     final batch = _refs.db.batch()
       ..update(ref, {
@@ -137,6 +225,20 @@ class LedgerRepository {
         'editedBy': byUid,
         'editedAt': FieldValue.serverTimestamp(),
       });
+    if (tx.type == TxType.subscription && tx.apartmentNumber != null) {
+      for (final p in tx.periods) {
+        final lock = _locks.doc(lockId(p, tx.apartmentNumber!));
+        if (voided) {
+          batch.delete(lock);
+        } else {
+          batch.set(lock, {
+            'period': p,
+            'apartmentNumber': tx.apartmentNumber,
+            'txId': tx.id,
+          });
+        }
+      }
+    }
     _refs.addAudit(
       batch,
       by: byUid,
@@ -147,6 +249,13 @@ class LedgerRepository {
       before: {'voided': tx.voided},
       after: {'voided': voided},
     );
-    return batch.commit();
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      if (!voided && e.code == 'permission-denied') {
+        throw const MonthAlreadyPaid();
+      }
+      rethrow;
+    }
   }
 }

@@ -6,6 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../core/phone.dart';
 import '../../auth/cubit/session_cubit.dart';
 import '../../sheet_import/view/contributions_page.dart';
+import '../../subscriptions/view/payment_sheet.dart';
 import '../cubit/apartments_cubit.dart';
 import '../data/apartment.dart';
 import 'apartments_page.dart' show whatsappGreen;
@@ -127,6 +128,13 @@ class _ApartmentFormState extends State<_ApartmentForm> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            OutlinedButton.icon(
+              onPressed: () =>
+                  showPaymentSheet(context, apartment: widget.apartment),
+              icon: const Icon(Icons.date_range_outlined),
+              label: const Text('تسجيل دفعة اشتراك'),
+            ),
+            const SizedBox(height: 24),
             DropdownButtonFormField<ApartmentStatus>(
               initialValue: _draft.status,
               decoration: const InputDecoration(labelText: 'حالة الشقة'),
