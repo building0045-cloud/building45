@@ -99,19 +99,16 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
           locale: const Locale('ar', 'EG'),
           supportedLocales: const [Locale('ar', 'EG')],
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          theme: _theme(Brightness.light),
-          darkTheme: _theme(Brightness.dark),
+          theme: _theme(),
+          themeMode: ThemeMode.light,
         ),
       ),
     );
   }
 }
 
-ThemeData _theme(Brightness brightness) => ThemeData(
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: const Color(0xFF0F766E),
-    brightness: brightness,
-  ),
+ThemeData _theme() => ThemeData(
+  colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E)),
   inputDecorationTheme: const InputDecorationTheme(
     border: OutlineInputBorder(),
   ),

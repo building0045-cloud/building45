@@ -97,6 +97,27 @@ class Apartment extends Equatable {
   final String notes;
   final List<Contact> contacts;
 
+  /// Arabic floor name; floor 0 is the ground floor.
+  static String floorName(int floor) => switch (floor) {
+    0 => 'الدور الأرضي',
+    1 => 'الدور الأول',
+    2 => 'الدور الثاني',
+    3 => 'الدور الثالث',
+    4 => 'الدور الرابع',
+    5 => 'الدور الخامس',
+    _ => 'الدور $floor',
+  };
+
+  /// Contacts that have a phone number, owners first.
+  List<Contact> get callableContacts => [
+    ...contacts.where(
+      (c) => c.kind == ContactKind.owner && c.phone.trim().isNotEmpty,
+    ),
+    ...contacts.where(
+      (c) => c.kind != ContactKind.owner && c.phone.trim().isNotEmpty,
+    ),
+  ];
+
   /// Name shown in lists: first owner, else first contact, else null when
   /// nobody is registered (shown as "غير معروف", never a made-up name).
   String? get displayName {

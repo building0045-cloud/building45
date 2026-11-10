@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/phone.dart';
 import '../../auth/cubit/session_cubit.dart';
 import '../../sheet_import/view/contributions_page.dart';
 import '../cubit/apartments_cubit.dart';
@@ -139,7 +140,10 @@ class _ApartmentFormState extends State<_ApartmentForm> {
               controller: _floor,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'الدور (اختياري)'),
+              decoration: const InputDecoration(
+                labelText: 'الدور',
+                helperText: '٠ = الدور الأرضي',
+              ),
               onChanged: (v) => setState(
                 () => _draft = _draft.copyWith(floor: () => int.tryParse(v)),
               ),
@@ -198,10 +202,21 @@ class _ApartmentFormState extends State<_ApartmentForm> {
                   ].join(' · '),
                 ),
                 onTap: () => _editContact(i),
-                trailing: IconButton(
-                  tooltip: 'حذف',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _removeContact(i),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (c.phone.trim().isNotEmpty)
+                      IconButton(
+                        tooltip: 'اتصال بـ${c.kind.label}',
+                        icon: const Icon(Icons.call),
+                        onPressed: () => callPhone(context, c.phone),
+                      ),
+                    IconButton(
+                      tooltip: 'حذف',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _removeContact(i),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(height: 24),

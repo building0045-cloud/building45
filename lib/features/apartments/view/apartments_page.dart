@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/phone.dart';
 import '../cubit/apartments_cubit.dart';
 import '../data/apartment.dart';
 
@@ -81,26 +82,85 @@ class _ApartmentsPageState extends State<ApartmentsPage> {
     if (items.isEmpty) {
       return const Center(child: Text('لا توجد شقق مطابقة'));
     }
-    return ListView.separated(
+    final theme = Theme.of(context);
+    // Group by floor, ground floor first; apartments without a floor last.
+    final floors = {for (final a in items) a.floor}.toList()
+      ..sort((a, b) => (a ?? 1 << 20).compareTo(b ?? 1 << 20));
+    return ListView(
       padding: const EdgeInsets.only(bottom: 24),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final a = items[i];
-        return ListTile(
-          leading: CircleAvatar(child: Text('${a.number}')),
-          title: Text(a.displayName ?? 'غير معروف'),
-          subtitle: Text(
-            [
-              a.status.label,
-              if (a.floor != null) 'الدور ${a.floor}',
-              if (!a.feeEligible) 'معفاة من الاشتراك',
-            ].join(' · '),
+      children: [
+        for (final floor in floors) ...[
+          Container(
+            width: double.infinity,
+            color: theme.colorScheme.surfaceContainerHighest,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              floor == null ? 'بدون دور محدد' : Apartment.floorName(floor),
+              style: theme.textTheme.titleSmall,
+            ),
           ),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: () => context.go('/app/apartments/${a.id}'),
-        );
-      },
+          for (final a in items.where((a) => a.floor == floor))
+            _ApartmentTile(apartment: a),
+        ],
+      ],
+    );
+  }
+}
+
+class _ApartmentTile extends StatelessWidget {
+  const _ApartmentTile({required this.apartment});
+
+  final Apartment apartment;
+
+  Future<void> _call(BuildContext context) async {
+    final contacts = apartment.callableContacts;
+    if (contacts.length == 1) {
+      return callPhone(context, contacts.first.phone);
+    }
+    final chosen = await showModalBottomSheet<Contact>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final c in contacts)
+              ListTile(
+                leading: const Icon(Icons.call),
+                title: Text('${c.name} (${c.kind.label})'),
+                subtitle: Text(c.phone, textDirection: TextDirection.ltr),
+                onTap: () => Navigator.of(context).pop(c),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null && context.mounted) {
+      await callPhone(context, chosen.phone);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = apartment;
+    return ListTile(
+      leading: CircleAvatar(child: Text('${a.number}')),
+      title: Text(a.displayName ?? 'غير معروف'),
+      subtitle: Text(
+        [a.status.label, if (!a.feeEligible) 'معفاة من الاشتراك'].join(' · '),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (a.callableContacts.isNotEmpty)
+            IconButton(
+              tooltip: 'اتصال',
+              icon: const Icon(Icons.call),
+              onPressed: () => _call(context),
+            ),
+          const Icon(Icons.chevron_left),
+        ],
+      ),
+      onTap: () => context.go('/app/apartments/${a.id}'),
     );
   }
 }
