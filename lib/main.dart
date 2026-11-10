@@ -7,6 +7,7 @@ import 'app.dart';
 import 'features/apartments/data/apartment_repository.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/ledger/data/ledger_repository.dart';
+import 'features/projects/data/project.dart';
 import 'features/settings/data/members_repository.dart';
 import 'features/sheet_import/data/import_item.dart';
 import 'firebase_options.dart';
@@ -23,6 +24,7 @@ Future<void> main() async {
       membersRepository: MembersRepository(db),
       importRepository: ImportRepository(db),
       ledgerRepository: LedgerRepository(db),
+      projectRepository: ProjectRepository(db),
     ),
   );
 }

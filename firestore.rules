@@ -78,7 +78,7 @@ service cloud.firestore {
         allow read: if isStaff();
         allow create: if isStaff()
           && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.type in ['income', 'subscription', 'expense']
+          && request.resource.data.type in ['income', 'subscription', 'project', 'expense']
           && validAmount();
         allow update: if isStaff()
           && request.resource.data.type == resource.data.type
@@ -103,6 +103,16 @@ service cloud.firestore {
         allow delete: if isStaff()
           && (txAfter(resource.data.txId).data.voided == true
               || !(resource.data.period in txAfter(resource.data.txId).data.periods));
+      }
+
+      // Projects created in the app: name, icon, total and each
+      // apartment's share. Admins manage them; they are never deleted.
+      match /projects/{id} {
+        allow read: if isStaff();
+        allow create, update: if isAdmin()
+          && request.resource.data.name is string
+          && request.resource.data.total is int
+          && request.resource.data.total > 0;
       }
 
       // Append-only history of financial and permission changes.

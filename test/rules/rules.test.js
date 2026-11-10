@@ -201,3 +201,16 @@ test('subscription locks: a month can be paid once, and only by a matching payme
     [`${B}/subscriptionLocks/2027-03_4`, lock('2027-03', 'r2')],
   ]));
 });
+
+test('projects: admins create and edit, treasurers read and collect, nobody deletes', async () => {
+  const project = { name: 'دهان السلم', icon: 'paint', total: 60000, shares: { '4': 30000, '7': 30000 } };
+  await assertSucceeds(setDoc(doc(as('owner'), `${B}/projects/p1`), project));
+  await assertFails(setDoc(doc(as('treasurer'), `${B}/projects/p2`), project));
+  await assertFails(setDoc(doc(as('owner'), `${B}/projects/p3`), { ...project, total: 0 }));
+  await assertSucceeds(getDoc(doc(as('treasurer'), `${B}/projects/p1`)));
+  await assertFails(getDoc(doc(anon(), `${B}/projects/p1`)));
+  await assertFails(deleteDoc(doc(as('owner'), `${B}/projects/p1`)));
+  await assertSucceeds(setDoc(doc(as('treasurer'), `${B}/transactions/prj_p1_4`), {
+    type: 'project', amount: 30000, projectId: 'p1', apartmentNumber: 4, createdBy: 'treasurer', voided: false,
+  }));
+});

@@ -62,6 +62,25 @@ final class LedgerLoaded extends LedgerState {
     return null;
   }
 
+  /// Counted contribution of [apartmentNumber] to [projectId].
+  LedgerTx? projectPayment(String projectId, int apartmentNumber) => txs
+      .where(
+        (t) =>
+            !t.voided &&
+            t.type == TxType.project &&
+            t.projectId == projectId &&
+            t.apartmentNumber == apartmentNumber,
+      )
+      .firstOrNull;
+
+  /// Total counted contributions to [projectId].
+  int projectCollected(String projectId) => txs
+      .where(
+        (t) =>
+            !t.voided && t.type == TxType.project && t.projectId == projectId,
+      )
+      .fold(0, (s, t) => s + t.amount);
+
   /// Months of [apartmentNumber] covered by counted payments other than
   /// [exceptTxId].
   Set<String> paidPeriods(int apartmentNumber, {String? exceptTxId}) => {

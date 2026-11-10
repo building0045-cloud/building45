@@ -8,6 +8,7 @@ enum TxType {
   opening('رصيد افتتاحي'),
   income('إيراد'),
   subscription('اشتراك شهري'),
+  project('مساهمة مشروع'),
   expense('مصروف');
 
   const TxType(this.label);
@@ -70,6 +71,7 @@ class LedgerTx extends Equatable {
     this.allocations = const [],
     this.payerName = '',
     this.payerKind = '',
+    this.projectId,
     this.voided = false,
     this.createdBy = '',
     this.createdByName = '',
@@ -95,6 +97,7 @@ class LedgerTx extends Equatable {
           : [if (legacyPeriod != null) Allocation(legacyPeriod, amount)],
       payerName: m['payerName'] as String? ?? '',
       payerKind: m['payerKind'] as String? ?? '',
+      projectId: m['projectId'] as String?,
       voided: m['voided'] as bool? ?? false,
       createdBy: m['createdBy'] as String? ?? '',
       createdByName: m['createdByName'] as String? ?? '',
@@ -118,6 +121,9 @@ class LedgerTx extends Equatable {
   /// `owner`, `tenant` or empty.
   final String payerKind;
 
+  /// Project a contribution belongs to.
+  final String? projectId;
+
   /// Cancelled entries stay in the log but do not count.
   final bool voided;
 
@@ -138,6 +144,7 @@ class LedgerTx extends Equatable {
     TxType.subscription =>
       allocations.length > 1 ? Icons.date_range_outlined : Icons.home_outlined,
     TxType.income => Icons.south_west,
+    TxType.project => Icons.savings_outlined,
     TxType.expense => category?.icon ?? Icons.north_east,
   };
 
@@ -157,6 +164,7 @@ class LedgerTx extends Equatable {
       'payerName': payerName,
       'payerKind': payerKind,
     },
+    if (projectId != null) 'projectId': projectId,
     'voided': voided,
     'createdBy': createdBy,
     'createdByName': createdByName,

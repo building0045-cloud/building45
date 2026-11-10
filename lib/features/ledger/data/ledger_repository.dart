@@ -105,6 +105,40 @@ class LedgerRepository {
     return batch.commit();
   }
 
+  /// An apartment's contribution to a project. One entry per apartment and
+  /// project, so a contribution cannot be counted twice.
+  Future<void> recordProjectPayment({
+    required String projectId,
+    required String projectName,
+    required int apartmentNumber,
+    required int amount,
+    required String byUid,
+    String byName = '',
+  }) {
+    final tx = LedgerTx(
+      id: 'prj_${projectId}_$apartmentNumber',
+      type: TxType.project,
+      amount: amount,
+      date: DateTime.now(),
+      description: 'مساهمة $projectName - شقة $apartmentNumber',
+      apartmentNumber: apartmentNumber,
+      projectId: projectId,
+      createdBy: byUid,
+      createdByName: byName,
+    );
+    final ref = _tx.doc(tx.id);
+    final batch = _refs.db.batch()
+      ..set(ref, {...tx.toMap(), 'createdAt': FieldValue.serverTimestamp()});
+    _refs.addAudit(
+      batch,
+      by: byUid,
+      action: 'project.collect',
+      target: ref.path,
+      summary: 'تحصيل ${tx.description}: ${formatEgp(amount)}',
+    );
+    return batch.commit();
+  }
+
   /// One-tap collection of a single month.
   Future<void> recordSubscription({
     required String period,

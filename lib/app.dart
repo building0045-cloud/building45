@@ -15,6 +15,8 @@ import 'features/auth/view/auth_gate.dart';
 import 'features/ledger/cubit/ledger_cubit.dart';
 import 'features/ledger/data/ledger_repository.dart';
 import 'features/ledger/view/ledger_page.dart';
+import 'features/projects/data/project.dart';
+import 'features/projects/view/project_page.dart';
 import 'features/projects/view/projects_page.dart';
 import 'features/settings/data/members_repository.dart';
 import 'features/settings/view/member_page.dart';
@@ -30,6 +32,7 @@ class HomeSystemApp extends StatefulWidget {
     required this.membersRepository,
     required this.importRepository,
     required this.ledgerRepository,
+    required this.projectRepository,
   });
 
   final AuthRepository authRepository;
@@ -37,6 +40,7 @@ class HomeSystemApp extends StatefulWidget {
   final MembersRepository membersRepository;
   final ImportRepository importRepository;
   final LedgerRepository ledgerRepository;
+  final ProjectRepository projectRepository;
 
   @override
   State<HomeSystemApp> createState() => _HomeSystemAppState();
@@ -79,6 +83,11 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
               GoRoute(path: 'sheet', builder: (_, _) => const SheetDataPage()),
               GoRoute(path: 'ledger', builder: (_, _) => const LedgerPage()),
               GoRoute(
+                path: 'project/:id',
+                builder: (_, state) =>
+                    ProjectPage(projectId: state.pathParameters['id']!),
+              ),
+              GoRoute(
                 path: 'members/:uid',
                 builder: (_, state) =>
                     MemberPage(uid: state.pathParameters['uid']!),
@@ -115,6 +124,7 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
         RepositoryProvider.value(value: widget.authRepository),
         RepositoryProvider.value(value: widget.membersRepository),
         RepositoryProvider.value(value: widget.importRepository),
+        RepositoryProvider.value(value: widget.projectRepository),
       ],
       child: BlocProvider.value(
         value: _session,
