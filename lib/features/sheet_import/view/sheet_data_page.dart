@@ -97,7 +97,7 @@ class _SheetDataPageState extends State<SheetDataPage> {
                                 ),
                           title: Text(item.originalText.trim()),
                           subtitle: Text(
-                            '${item.kind.label} · خانة ${item.cell}',
+                            '${item.originalKind.label} · خانة ${item.cell}',
                           ),
                         );
                       },

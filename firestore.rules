@@ -61,11 +61,12 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
-      // Raw cells imported from the old spreadsheet, kept with their source
-      // for review. They are not financial records until confirmed.
+      // Contribution records: cells imported from the old spreadsheet (kept
+      // with their source and original text) plus edits made in the app.
       match /importItems/{id} {
         allow read: if isStaff();
-        allow write: if isAdmin();
+        allow create, update: if isStaff();
+        allow delete: if isAdmin();
       }
 
       // Append-only history of financial and permission changes.

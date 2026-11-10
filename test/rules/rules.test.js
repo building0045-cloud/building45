@@ -122,11 +122,13 @@ test('audit log is append-only and signed by its author', async () => {
   await assertFails(deleteDoc(doc(as('owner'), `${B}/auditLog/a1`)));
 });
 
-test('imported sheet cells are staff-readable and admin-writable only', async () => {
+test('contribution records are staff-only and cannot be deleted by a treasurer', async () => {
   const path = `${B}/importItems/x_C2`;
   await assertSucceeds(setDoc(doc(as('admin2'), path), { originalText: '100' }));
   await assertSucceeds(getDoc(doc(as('treasurer'), path)));
-  await assertFails(setDoc(doc(as('treasurer'), path), { originalText: '200' }));
+  await assertSucceeds(setDoc(doc(as('treasurer'), path), { editedText: '200' }, { merge: true }));
+  await assertFails(deleteDoc(doc(as('treasurer'), path)));
+  await assertFails(setDoc(doc(as('resident'), path), { editedText: '1' }));
   await assertFails(getDoc(doc(anon(), path)));
   await assertFails(getDoc(doc(as('stranger'), path)));
   await assertFails(getDoc(doc(as('resident'), path)));

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../apartments/cubit/apartments_cubit.dart';
 import '../../apartments/data/apartment.dart';
+import '../../auth/cubit/session_cubit.dart';
 import '../data/import_item.dart';
 
 /// Contributions as recorded in the old spreadsheet: one row per apartment
@@ -62,7 +62,10 @@ class _ContributionsPageState extends State<ContributionsPage> {
           );
         final notes = items
             .where(
-              (i) => i.apartmentNumber == null && i.kind != ImportKind.total,
+              (i) =>
+                  i.apartmentNumber == null &&
+                  i.kind != ImportKind.total &&
+                  i.text.isNotEmpty,
             )
             .toList();
         final paid = items
@@ -98,7 +101,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   child: ListTile(
                     title: const Text('إجمالي المبالغ المدفوعة'),
-                    subtitle: const Text('كما ورد في الشيت، قبل المراجعة'),
+                    subtitle: const Text('اضغط على أي شقة لتعديل قيمتها'),
                     trailing: Text(
                       '${_money(paid)} ج.م',
                       style: theme.textTheme.titleLarge,
@@ -109,6 +112,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
                 for (final a in apartments)
                   _ApartmentRow(
                     apartment: a,
+                    sheet: items.first,
                     items: items
                         .where((i) => i.apartmentNumber == a.number)
                         .toList(),
@@ -125,8 +129,12 @@ class _ContributionsPageState extends State<ContributionsPage> {
                     ListTile(
                       dense: true,
                       leading: const Icon(Icons.notes, size: 20),
-                      title: Text(n.originalText.trim()),
-                      subtitle: Text(n.kind.label),
+                      title: Text(n.text),
+                      subtitle: Text(
+                        n.isEdited ? '${n.kind.label} · عُدّلت' : n.kind.label,
+                      ),
+                      trailing: const Icon(Icons.edit_outlined, size: 18),
+                      onTap: () => _editNote(context, n),
                     ),
                 ],
               ],
@@ -151,43 +159,302 @@ class _ContributionsPageState extends State<ContributionsPage> {
 }
 
 class _ApartmentRow extends StatelessWidget {
-  const _ApartmentRow({required this.apartment, required this.items});
+  const _ApartmentRow({
+    required this.apartment,
+    required this.sheet,
+    required this.items,
+  });
 
   final Apartment apartment;
+
+  /// Any record of the sheet being shown; identifies the month or project.
+  final ImportItem sheet;
   final List<ImportItem> items;
+
+  Future<void> _edit(BuildContext context, ImportItem? existing) async {
+    final session = context.read<SessionCubit>().state;
+    if (session is! SessionActive) return;
+    final repo = context.read<ImportRepository>();
+    final messenger = ScaffoldMessenger.of(context);
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _ContributionDialog(
+        title: 'شقة ${apartment.number} · ${sheet.sheetName}',
+        initial: existing?.text ?? '',
+        monthly: sheet.period != null,
+      ),
+    );
+    if (text == null || text == (existing?.text ?? '')) return;
+    try {
+      await repo.saveContribution(
+        sheet: sheet,
+        existing: existing,
+        apartmentNumber: apartment.number,
+        text: text,
+        byUid: session.user.uid,
+      );
+      messenger.showSnackBar(const SnackBar(content: Text('تم حفظ التعديل')));
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('تعذر الحفظ، حاول مرة أخرى')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final main = items.where((i) => i.col == 3).firstOrNull;
-    final rowNotes = items.where((i) => i.col > 3).toList();
+    final existing = items.where((i) => i.col == 3).firstOrNull;
+    final main = (existing?.text.isEmpty ?? true) ? null : existing;
+    final rowNotes = items.where((i) => i.col > 3 && i.text.isNotEmpty);
     final isPayment = main?.kind == ImportKind.payment;
+    final details = [
+      ...rowNotes.map((n) => n.text),
+      if (existing != null && existing.isEdited)
+        existing.originalText.trim().isEmpty
+            ? 'أُضيف يدويًا'
+            : 'عُدّل · في الشيت: ${existing.originalText.trim()}',
+    ];
 
     return ListTile(
       leading: CircleAvatar(child: Text('${apartment.number}')),
       title: Text(apartment.displayName ?? 'غير معروف'),
-      subtitle: rowNotes.isEmpty
-          ? null
-          : Text(rowNotes.map((n) => n.originalText.trim()).join(' · ')),
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 150),
-        child: Text(
-          main == null
-              ? 'لا يوجد تسجيل'
-              : isPayment
-              ? '${_money(main.amount ?? 0)} ج.م'
-              : main.originalText.trim(),
-          textAlign: TextAlign.end,
-          style: isPayment
-              ? theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                )
-              : theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+      subtitle: details.isEmpty ? null : Text(details.join(' · ')),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 130),
+            child: Text(
+              main == null
+                  ? 'لا يوجد تسجيل'
+                  : isPayment
+                  ? '${_money(main.amount ?? 0)} ج.م'
+                  : main.text,
+              textAlign: TextAlign.end,
+              style: isPayment
+                  ? theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    )
+                  : theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.edit_outlined,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+      onTap: () => _edit(context, existing),
+    );
+  }
+}
+
+Future<void> _editNote(BuildContext context, ImportItem note) async {
+  final session = context.read<SessionCubit>().state;
+  if (session is! SessionActive) return;
+  final repo = context.read<ImportRepository>();
+  final messenger = ScaffoldMessenger.of(context);
+  final controller = TextEditingController(text: note.text);
+  final text = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('تعديل الملاحظة'),
+      content: TextField(
+        controller: controller,
+        maxLines: 4,
+        autofocus: true,
+        decoration: const InputDecoration(
+          helperText: 'اتركها فارغة لإخفاء الملاحظة',
         ),
       ),
-      onTap: () => context.go('/app/apartments/${apartment.id}'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+          child: const Text('حفظ'),
+        ),
+      ],
+    ),
+  );
+  if (text == null || text == note.text) return;
+  try {
+    await repo.saveNote(item: note, text: text, byUid: session.user.uid);
+    messenger.showSnackBar(const SnackBar(content: Text('تم حفظ التعديل')));
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('تعذر الحفظ، حاول مرة أخرى')),
+    );
+  }
+}
+
+enum _Choice {
+  amount('مبلغ مدفوع'),
+  settled('خالص'),
+  paidIn('تم الدفع في شهر آخر'),
+  notHandedOver('لم يتسلم الوحدة'),
+  other('نص آخر'),
+  none('لا يوجد تسجيل');
+
+  const _Choice(this.label);
+  final String label;
+}
+
+/// Edits one apartment's contribution value. Pops the new text, where an
+/// empty string means "no record".
+class _ContributionDialog extends StatefulWidget {
+  const _ContributionDialog({
+    required this.title,
+    required this.initial,
+    required this.monthly,
+  });
+
+  final String title;
+  final String initial;
+  final bool monthly;
+
+  @override
+  State<_ContributionDialog> createState() => _ContributionDialogState();
+}
+
+class _ContributionDialogState extends State<_ContributionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late _Choice _choice;
+  final _amount = TextEditingController();
+  final _month = TextEditingController();
+  final _other = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final text = widget.initial;
+    if (text.isEmpty) {
+      _choice = _Choice.amount;
+    } else {
+      switch (classifyContribution(text)) {
+        case ImportKind.payment:
+          _choice = _Choice.amount;
+          _amount.text = _money(parseAmount(text)!);
+        case ImportKind.settledNote:
+          _choice = _Choice.settled;
+        case ImportKind.paymentReference:
+          _choice = _Choice.paidIn;
+          _month.text = text.substring(paidInPrefix.length).trim();
+        case ImportKind.notHandedOverNote:
+          _choice = _Choice.notHandedOver;
+        default:
+          _choice = _Choice.other;
+          _other.text = text;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _month.dispose();
+    _other.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    final text = switch (_choice) {
+      _Choice.amount => _money(parseAmount(_amount.text)!),
+      _Choice.settled => settledText,
+      _Choice.paidIn => '$paidInPrefix ${_month.text.trim()}',
+      _Choice.notHandedOver => notHandedOverText,
+      _Choice.other => _other.text.trim(),
+      _Choice.none => '',
+    };
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final choices = [
+      for (final c in _Choice.values)
+        if (widget.monthly ||
+            c == _Choice.amount ||
+            c == _Choice.other ||
+            c == _Choice.none ||
+            c == _choice)
+          c,
+    ];
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<_Choice>(
+                initialValue: _choice,
+                decoration: const InputDecoration(labelText: 'الحالة'),
+                items: [
+                  for (final c in choices)
+                    DropdownMenuItem(value: c, child: Text(c.label)),
+                ],
+                onChanged: (c) => setState(() => _choice = c!),
+              ),
+              const SizedBox(height: 16),
+              if (_choice == _Choice.amount)
+                TextFormField(
+                  controller: _amount,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'المبلغ',
+                    suffixText: 'ج.م',
+                  ),
+                  validator: (v) {
+                    final amount = parseAmount(v ?? '');
+                    return amount == null || amount <= 0
+                        ? 'اكتب مبلغًا صحيحًا'
+                        : null;
+                  },
+                  onFieldSubmitted: (_) => _submit(),
+                ),
+              if (_choice == _Choice.paidIn)
+                TextFormField(
+                  controller: _month,
+                  decoration: const InputDecoration(
+                    labelText: 'الشهر الذي تم فيه الدفع',
+                    hintText: 'مثال: مايو',
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'اكتب اسم الشهر' : null,
+                ),
+              if (_choice == _Choice.other)
+                TextFormField(
+                  controller: _other,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'النص'),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'اكتب النص' : null,
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('حفظ')),
+      ],
     );
   }
 }
@@ -215,7 +482,11 @@ class _ApartmentSheetHistoryState extends State<ApartmentSheetHistory> {
       builder: (context, snap) {
         final items =
             (snap.data ?? const <ImportItem>[])
-                .where((i) => i.apartmentNumber == widget.apartmentNumber)
+                .where(
+                  (i) =>
+                      i.apartmentNumber == widget.apartmentNumber &&
+                      i.text.isNotEmpty,
+                )
                 .toList()
               ..sort(
                 (a, b) => (a.period ?? 'z${a.sheetName}').compareTo(
@@ -243,7 +514,7 @@ class _ApartmentSheetHistoryState extends State<ApartmentSheetHistory> {
                   child: Text(
                     i.kind == ImportKind.payment
                         ? '${_money(i.amount ?? 0)} ج.م'
-                        : i.originalText.trim(),
+                        : i.text,
                     textAlign: TextAlign.end,
                     style: i.kind == ImportKind.payment
                         ? theme.textTheme.titleSmall?.copyWith(

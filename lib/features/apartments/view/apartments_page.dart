@@ -123,10 +123,11 @@ class _ApartmentTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const ListTile(title: Text('الاتصال بمن؟')),
             for (final c in contacts)
               ListTile(
                 leading: const Icon(Icons.call),
-                title: Text('${c.name} (${c.kind.label})'),
+                title: Text('${c.kind.label}: ${c.name}'),
                 subtitle: Text(c.phone, textDirection: TextDirection.ltr),
                 onTap: () => Navigator.of(context).pop(c),
               ),
