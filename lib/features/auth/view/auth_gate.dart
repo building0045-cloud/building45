@@ -22,14 +22,12 @@ class AuthGate extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
+                  Center(
                     child: Image.asset(
-                      'assets/images/building.jpg',
-                      height: 260,
-                      fit: BoxFit.cover,
-                      alignment: const Alignment(0, -0.8),
-                      semanticLabel: 'مدخل عمارة ٤٥',
+                      'assets/images/logo.png',
+                      width: 180,
+                      height: 180,
+                      semanticLabel: 'شعار عمارة ٤٥',
                     ),
                   ),
                   const SizedBox(height: 24),
