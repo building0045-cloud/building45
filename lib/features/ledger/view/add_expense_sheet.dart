@@ -79,6 +79,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
         description: _description.text.trim(),
         date: _date,
         byUid: session.user.uid,
+        byName: session.member.name,
       );
       navigator.pop();
       messenger.showSnackBar(const SnackBar(content: Text('تم تسجيل المصروف')));

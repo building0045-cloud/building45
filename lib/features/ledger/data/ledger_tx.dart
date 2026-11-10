@@ -72,6 +72,7 @@ class LedgerTx extends Equatable {
     this.payerKind = '',
     this.voided = false,
     this.createdBy = '',
+    this.createdByName = '',
   });
 
   factory LedgerTx.fromMap(String id, JsonMap m) {
@@ -96,6 +97,7 @@ class LedgerTx extends Equatable {
       payerKind: m['payerKind'] as String? ?? '',
       voided: m['voided'] as bool? ?? false,
       createdBy: m['createdBy'] as String? ?? '',
+      createdByName: m['createdByName'] as String? ?? '',
     );
   }
 
@@ -118,7 +120,11 @@ class LedgerTx extends Equatable {
 
   /// Cancelled entries stay in the log but do not count.
   final bool voided;
+
+  /// Staff member who recorded the entry: who collected the money or paid
+  /// the expense.
   final String createdBy;
+  final String createdByName;
 
   bool get isOutgoing => type == TxType.expense;
 
@@ -153,6 +159,7 @@ class LedgerTx extends Equatable {
     },
     'voided': voided,
     'createdBy': createdBy,
+    'createdByName': createdByName,
   };
 
   @override

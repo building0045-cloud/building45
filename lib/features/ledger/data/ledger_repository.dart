@@ -80,6 +80,7 @@ class LedgerRepository {
     required String description,
     required DateTime date,
     required String byUid,
+    String byName = '',
   }) {
     final tx = LedgerTx(
       id: id,
@@ -89,6 +90,7 @@ class LedgerRepository {
       description: description,
       category: category,
       createdBy: byUid,
+      createdByName: byName,
     );
     final ref = _tx.doc(id);
     final batch = _refs.db.batch()
@@ -109,12 +111,14 @@ class LedgerRepository {
     required int apartmentNumber,
     required int amount,
     required String byUid,
+    String byName = '',
   }) => savePayment(
     id: subscriptionTxId(period, apartmentNumber),
     apartmentNumber: apartmentNumber,
     allocations: [Allocation(period, amount)],
     date: DateTime.now(),
     byUid: byUid,
+    byName: byName,
   );
 
   /// Records (or, with [previous], replaces) a subscription payment that
@@ -126,6 +130,7 @@ class LedgerRepository {
     required List<Allocation> allocations,
     required DateTime date,
     required String byUid,
+    String byName = '',
     String payerName = '',
     String payerKind = '',
     LedgerTx? previous,
@@ -147,6 +152,10 @@ class LedgerRepository {
       createdBy: previous?.createdBy.isNotEmpty == true
           ? previous!.createdBy
           : byUid,
+      // Editing keeps the person who originally collected the money.
+      createdByName: previous != null && previous.createdBy.isNotEmpty
+          ? previous.createdByName
+          : byName,
     );
     final ref = _tx.doc(id);
     final before = previous != null && !previous.voided

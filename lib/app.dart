@@ -17,6 +17,7 @@ import 'features/ledger/data/ledger_repository.dart';
 import 'features/ledger/view/ledger_page.dart';
 import 'features/projects/view/projects_page.dart';
 import 'features/settings/data/members_repository.dart';
+import 'features/settings/view/member_page.dart';
 import 'features/sheet_import/data/import_item.dart';
 import 'features/sheet_import/view/sheet_data_page.dart';
 import 'features/shell/view/home_shell.dart';
@@ -77,6 +78,11 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
             routes: [
               GoRoute(path: 'sheet', builder: (_, _) => const SheetDataPage()),
               GoRoute(path: 'ledger', builder: (_, _) => const LedgerPage()),
+              GoRoute(
+                path: 'members/:uid',
+                builder: (_, state) =>
+                    MemberPage(uid: state.pathParameters['uid']!),
+              ),
               GoRoute(
                 path: 'projects/:gid',
                 builder: (_, state) =>

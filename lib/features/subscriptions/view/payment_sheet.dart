@@ -189,6 +189,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         payerName: payerName,
         payerKind: payerKind,
         byUid: session.user.uid,
+        byName: session.member.name,
         previous: widget.existing,
       );
       navigator.pop();

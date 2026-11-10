@@ -44,6 +44,7 @@ class TxTile extends StatelessWidget {
         [
           formatDate(tx.date),
           tx.type.label,
+          if (tx.createdByName.isNotEmpty) 'بواسطة ${tx.createdByName}',
           if (tx.voided) 'ملغاة',
         ].join(' · '),
       ),

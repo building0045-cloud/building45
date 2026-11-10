@@ -374,6 +374,7 @@ class _Row extends StatelessWidget {
         apartmentNumber: n,
         amount: fee,
         byUid: session.user.uid,
+        byName: session.member.name,
       );
       messenger
         ..hideCurrentSnackBar()

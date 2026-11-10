@@ -161,4 +161,20 @@ void main() {
     expect(whatsappNumber('+20 101 234 5678'), '201012345678');
     expect(whatsappNumber('00201012345678'), '201012345678');
   });
+
+  test('an entry keeps who recorded it', () {
+    final tx = LedgerTx(
+      id: 'e1',
+      type: TxType.expense,
+      amount: 25000,
+      date: DateTime(2026, 11, 10),
+      createdBy: 'u1',
+      createdByName: 'وائل',
+    );
+
+    final back = LedgerTx.fromMap('e1', {...tx.toMap(), 'date': null});
+
+    expect(back.createdBy, 'u1');
+    expect(back.createdByName, 'وائل');
+  });
 }
