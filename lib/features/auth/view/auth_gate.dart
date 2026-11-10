@@ -30,6 +30,13 @@ class AuthGate extends StatelessWidget {
                       semanticLabel: 'شعار عمارة ٤٥',
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'إدارة عمارة ٤٥',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 24),
                   BlocBuilder<SessionCubit, SessionState>(
                     builder: (context, state) => switch (state) {
