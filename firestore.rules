@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /buildings/{b} {
+
+      function memberPath() {
+        return /databases/$(database)/documents/buildings/$(b)/members/$(request.auth.uid);
+      }
+      function isMember() {
+        return signedIn() && exists(memberPath()) && get(memberPath()).data.active == true;
+      }
+      function isAdmin() {
+        return isMember() && get(memberPath()).data.role == 'admin';
+      }
+      function isStaff() {
+        return isMember() && get(memberPath()).data.role in ['admin', 'treasurer'];
+      }
+      function isOwner() {
+        return signedIn()
+          && get(/databases/$(database)/documents/buildings/$(b)).data.ownerUid == request.auth.uid;
+      }
+
+      // Holds only the building name and owner; any signed-in account may
+      // check whether it exists. The first account to create it owns it.
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isAdmin() && request.resource.data.ownerUid == resource.data.ownerUid;
+
+      match /members/{uid} {
+        allow get: if signedIn() && request.auth.uid == uid;
+        allow read: if isStaff();
+        // The owner can always (re)create their own admin membership.
+        allow create: if isAdmin()
+          || (isOwner() && request.auth.uid == uid
+              && request.resource.data.role == 'admin'
+              && request.resource.data.active == true);
+        // The owner's membership cannot be changed by other admins.
+        allow update: if isAdmin()
+          && get(/databases/$(database)/documents/buildings/$(b)).data.ownerUid != uid;
+      }
+
+      match /accessRequests/{uid} {
+        allow get, create: if signedIn() && request.auth.uid == uid;
+        allow read, delete: if isAdmin();
+      }
+
+      match /apartments/{id} {
+        allow read: if isStaff();
+        allow create, update: if isStaff();
+        allow delete: if isAdmin();
+      }
+
+      match /settings/{doc} {
+        allow read: if isStaff();
+        allow write: if isAdmin();
+      }
+
+      // Raw cells imported from the old spreadsheet, kept with their source
+      // for review. They are not financial records until confirmed.
+      match /importItems/{id} {
+        allow read: if isStaff();
+        allow write: if isAdmin();
+      }
+
+      // Append-only history of financial and permission changes.
+      match /auditLog/{id} {
+        allow read: if isStaff();
+        allow create: if isStaff() && request.resource.data.by == request.auth.uid;
+      }
+
+      // The only world-readable data: what the admin chose to publish.
+      match /public/{doc} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
+    }
+  }
+}
