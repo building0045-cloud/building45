@@ -3,7 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/money.dart';
+import '../../../core/periods.dart';
 import '../../../core/phone.dart';
+import '../../subscriptions/data/arrears.dart';
 import '../cubit/apartments_cubit.dart';
 import '../data/apartment.dart';
 
@@ -18,9 +21,10 @@ class _ApartmentsPageState extends State<ApartmentsPage> {
   /// null = all; otherwise 'rented' or an [ApartmentStatus] name.
   String? _filter;
 
-  bool _matches(Apartment a) => switch (_filter) {
+  bool _matches(Apartment a, Arrears? arrears) => switch (_filter) {
     null => true,
     'rented' => a.isRented,
+    'owing' => (arrears?.totalFor(a.number) ?? 0) > 0,
     final status => a.status.name == status,
   };
 
@@ -42,30 +46,33 @@ class _ApartmentsPageState extends State<ApartmentsPage> {
             children: [
               _chip('الكل', null),
               _chip('مؤجرة', 'rented'),
+              _chip('عليها متأخرات', 'owing'),
               for (final s in ApartmentStatus.values) _chip(s.label, s.name),
             ],
           ),
         ),
         Expanded(
-          child: BlocBuilder<ApartmentsCubit, ApartmentsState>(
-            builder: (context, state) => switch (state) {
-              ApartmentsLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
-              ApartmentsFailure() => const Center(
-                child: Text('تعذر تحميل الشقق. تأكد من الاتصال بالإنترنت.'),
-              ),
-              ApartmentsLoaded(:final apartments) => _list(
-                apartments.where(_matches).toList(),
-              ),
-            },
+          child: ArrearsBuilder(
+            builder: (context, arrears) =>
+                switch (context.watch<ApartmentsCubit>().state) {
+                  ApartmentsLoading() => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  ApartmentsFailure() => const Center(
+                    child: Text('تعذر تحميل الشقق. تأكد من الاتصال بالإنترنت.'),
+                  ),
+                  ApartmentsLoaded(:final apartments) => _list(
+                    apartments.where((a) => _matches(a, arrears)).toList(),
+                    arrears,
+                  ),
+                },
           ),
         ),
       ],
     );
   }
 
-  Widget _list(List<Apartment> items) {
+  Widget _list(List<Apartment> items, Arrears? arrears) {
     if (items.isEmpty) {
       return const Center(child: Text('لا توجد شقق مطابقة'));
     }
@@ -87,12 +94,19 @@ class _ApartmentsPageState extends State<ApartmentsPage> {
             ),
           ),
           for (final a in items.where((a) => a.floor == floor))
-            _ApartmentTile(apartment: a),
+            _ApartmentTile(
+              apartment: a,
+              unpaid: arrears?.byApartment[a.number] ?? const [],
+            ),
         ],
       ],
     );
   }
 }
+
+String _months(List<UnpaidMonth> months) => months.length == 1
+    ? periodLabel(months.first.period)
+    : '${months.length == 2 ? 'شهرين' : '${toArabicDigits('${months.length}')} شهور'} من ${periodLabel(months.first.period)}';
 
 const whatsappGreen = Color(0xFF25D366);
 
@@ -126,9 +140,12 @@ Future<Contact?> pickContact(
 }
 
 class _ApartmentTile extends StatelessWidget {
-  const _ApartmentTile({required this.apartment});
+  const _ApartmentTile({required this.apartment, required this.unpaid});
 
   final Apartment apartment;
+
+  /// Unpaid subscription months of the apartment.
+  final List<UnpaidMonth> unpaid;
 
   Future<void> _call(BuildContext context) async {
     final c = await pickContact(
@@ -155,12 +172,27 @@ class _ApartmentTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(child: Text('${a.number}')),
       title: Text(a.displayName ?? 'غير معروف'),
-      subtitle: Text(
-        [
-          a.status.label,
-          if (a.isRented) 'مؤجرة',
-          if (!a.feeEligible) 'معفاة من الاشتراك',
-        ].join(' · '),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [
+              a.status.label,
+              if (a.isRented) 'مؤجرة',
+              if (!a.feeEligible) 'معفاة من الاشتراك',
+            ].join(' · '),
+          ),
+          if (unpaid.isNotEmpty)
+            Text(
+              'غير مدفوع على ${a.isRented ? 'المستأجر' : 'المالك'}: '
+              '${formatEgp(unpaid.fold(0, (s, m) => s + m.owed))} '
+              '(${_months(unpaid)})',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
       ),
       trailing: hasPhone
           ? Row(

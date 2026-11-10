@@ -11,6 +11,7 @@ import '../../ledger/cubit/ledger_cubit.dart';
 import '../../ledger/view/add_expense_sheet.dart';
 import '../../ledger/view/tx_widgets.dart';
 import '../../sheet_import/data/import_item.dart';
+import '../../subscriptions/data/arrears.dart';
 import '../../subscriptions/view/subscriptions_page.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -55,11 +56,15 @@ class _DashboardPageState extends State<DashboardPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            _BalanceCard(
-              balance: ledger.balance,
-              income: ledger.incomeIn(period),
-              expenses: ledger.expensesIn(period),
-              period: period,
+            ArrearsBuilder(
+              builder: (context, arrears) => _BalanceCard(
+                balance: ledger.balance,
+                income: ledger.incomeIn(period),
+                expenses: ledger.expensesIn(period),
+                period: period,
+                arrears: arrears,
+                onOpenArrears: () => widget.onOpenTab(1),
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -181,12 +186,16 @@ class _BalanceCard extends StatelessWidget {
     required this.income,
     required this.expenses,
     required this.period,
+    required this.arrears,
+    required this.onOpenArrears,
   });
 
   final int balance;
   final int income;
   final int expenses;
   final String period;
+  final Arrears? arrears;
+  final VoidCallback onOpenArrears;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +280,55 @@ class _BalanceCard extends StatelessWidget {
               ),
             ],
           ),
+          if (arrears case final arrears?) ...[
+            const SizedBox(height: 12),
+            Material(
+              color: const Color(0xFFFF8A80).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onOpenArrears,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.pending_actions_outlined,
+                        color: Color(0xFFFF8A80),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'اشتراكات غير مدفوعة منذ '
+                              '${periodLabel(arrears.from)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.white70,
+                              ),
+                            ),
+                            Text(
+                              arrears.total == 0
+                                  ? 'لا توجد متأخرات'
+                                  : '${formatEgp(arrears.total)} · '
+                                        '${toArabicDigits('${arrears.apartmentsOwing}')} شقة',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_left, color: Colors.white54),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
