@@ -180,6 +180,8 @@ class _ApartmentTile extends StatelessWidget {
               a.status.label,
               if (a.isRented) 'مؤجرة',
               if (!a.feeEligible) 'معفاة من الاشتراك',
+              if (a.feeEligible && a.monthlyFee != null)
+                'اشتراك ${formatEgp(a.monthlyFee!)}',
             ].join(' · '),
           ),
           if (unpaid.isNotEmpty)

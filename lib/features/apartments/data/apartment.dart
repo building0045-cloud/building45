@@ -69,6 +69,7 @@ class Apartment extends Equatable {
     this.floor,
     this.status = ApartmentStatus.unknown,
     this.feeEligible = true,
+    this.monthlyFee,
     this.notes = '',
     this.contacts = const [],
   });
@@ -79,6 +80,7 @@ class Apartment extends Equatable {
     floor: (map['floor'] as num?)?.toInt(),
     status: ApartmentStatus.parse(map['status']),
     feeEligible: map['feeEligible'] as bool? ?? true,
+    monthlyFee: (map['monthlyFee'] as num?)?.toInt(),
     notes: map['notes'] as String? ?? '',
     contacts: [
       for (final c in (map['contacts'] as List<dynamic>? ?? const []))
@@ -94,6 +96,9 @@ class Apartment extends Equatable {
   /// Whether monthly dues are generated for this apartment. Always an
   /// explicit decision; never derived from [status].
   final bool feeEligible;
+
+  /// Monthly subscription in piastres, or null for the building default.
+  final int? monthlyFee;
   final String notes;
   final List<Contact> contacts;
 
@@ -107,6 +112,9 @@ class Apartment extends Equatable {
     5 => 'الدور الخامس',
     _ => 'الدور $floor',
   };
+
+  /// What this apartment owes each month.
+  int feeOr(int buildingFee) => monthlyFee ?? buildingFee;
 
   bool get hasOwner => contacts.any(
     (c) => c.kind == ContactKind.owner && c.name.trim().isNotEmpty,
@@ -147,6 +155,7 @@ class Apartment extends Equatable {
     int? Function()? floor,
     ApartmentStatus? status,
     bool? feeEligible,
+    int? Function()? monthlyFee,
     String? notes,
     List<Contact>? contacts,
   }) => Apartment(
@@ -155,6 +164,7 @@ class Apartment extends Equatable {
     floor: floor == null ? this.floor : floor(),
     status: status ?? this.status,
     feeEligible: feeEligible ?? this.feeEligible,
+    monthlyFee: monthlyFee == null ? this.monthlyFee : monthlyFee(),
     notes: notes ?? this.notes,
     contacts: contacts ?? this.contacts,
   );
@@ -164,6 +174,7 @@ class Apartment extends Equatable {
     'floor': floor,
     'status': status.name,
     'feeEligible': feeEligible,
+    'monthlyFee': monthlyFee,
     'notes': notes,
     'contacts': [for (final c in contacts) c.toMap()],
   };
@@ -175,6 +186,7 @@ class Apartment extends Equatable {
     floor,
     status,
     feeEligible,
+    monthlyFee,
     notes,
     contacts,
   ];

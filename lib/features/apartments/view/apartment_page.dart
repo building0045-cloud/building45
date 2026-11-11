@@ -3,8 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import '../../../core/money.dart';
+import '../../../core/periods.dart';
 import '../../../core/phone.dart';
 import '../../auth/cubit/session_cubit.dart';
+import '../../ledger/cubit/ledger_cubit.dart';
+import '../../ledger/view/tx_widgets.dart';
+import '../../subscriptions/data/arrears.dart';
 import '../../sheet_import/view/contributions_page.dart';
 import '../../subscriptions/view/payment_sheet.dart';
 import '../cubit/apartments_cubit.dart';
@@ -128,12 +133,7 @@ class _ApartmentFormState extends State<_ApartmentForm> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            OutlinedButton.icon(
-              onPressed: () =>
-                  showPaymentSheet(context, apartment: widget.apartment),
-              icon: const Icon(Icons.date_range_outlined),
-              label: const Text('تسجيل دفعة اشتراك'),
-            ),
+            _ArrearsCard(apartment: widget.apartment),
             const SizedBox(height: 24),
             DropdownButtonFormField<ApartmentStatus>(
               initialValue: _draft.status,
@@ -170,6 +170,13 @@ class _ApartmentFormState extends State<_ApartmentForm> {
               onChanged: (v) =>
                   setState(() => _draft = _draft.copyWith(feeEligible: v)),
             ),
+            if (_draft.feeEligible)
+              _FeeSelector(
+                value: _draft.monthlyFee,
+                onChanged: (v) => setState(
+                  () => _draft = _draft.copyWith(monthlyFee: () => v),
+                ),
+              ),
             const SizedBox(height: 8),
             TextField(
               controller: _notes,
@@ -247,6 +254,179 @@ class _ApartmentFormState extends State<_ApartmentForm> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Fee for a resident and for an owner who received the unit but does not
+/// live in it.
+const residentFee = 10000;
+const nonResidentFee = 5000;
+
+/// Picks the apartment's monthly subscription; null means the building
+/// default.
+class _FeeSelector extends StatelessWidget {
+  const _FeeSelector({required this.value, required this.onChanged});
+
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  Future<void> _custom(BuildContext context) async {
+    final amount = await askAmount(
+      context,
+      title: 'اشتراك الشقة الشهري',
+      initial: value,
+    );
+    if (amount != null && amount > 0) onChanged(amount);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final custom =
+        value != null && value != residentFee && value != nonResidentFee;
+    return StreamBuilder<int>(
+      stream: context.read<LedgerCubit>().repo.watchMonthlyFee(),
+      builder: (context, snap) {
+        final building = snap.data;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('الاشتراك الشهري', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: Text(
+                      building == null
+                          ? 'الافتراضي'
+                          : 'الافتراضي (${formatEgp(building)})',
+                    ),
+                    selected: value == null,
+                    onSelected: (_) => onChanged(null),
+                  ),
+                  ChoiceChip(
+                    label: Text('ساكن ${formatEgp(residentFee)}'),
+                    selected: value == residentFee,
+                    onSelected: (_) => onChanged(residentFee),
+                  ),
+                  ChoiceChip(
+                    label: Text('مستلم غير مقيم ${formatEgp(nonResidentFee)}'),
+                    selected: value == nonResidentFee,
+                    onSelected: (_) => onChanged(nonResidentFee),
+                  ),
+                  ChoiceChip(
+                    label: Text(custom ? formatEgp(value!) : 'مبلغ آخر'),
+                    selected: custom,
+                    onSelected: (_) => _custom(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Unpaid months of this year, amounts carried from earlier years, and the
+/// payment button.
+class _ArrearsCard extends StatelessWidget {
+  const _ArrearsCard({required this.apartment});
+
+  final Apartment apartment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ArrearsBuilder(
+      builder: (context, arrears) {
+        final n = apartment.number;
+        final months = arrears?.monthsFor(n) ?? const <UnpaidMonth>[];
+        final thisYear = arrears?.thisYearFor(n) ?? const <UnpaidMonth>[];
+        final carried = arrears?.carriedByYear(n) ?? const <int, int>{};
+        return Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'المتأخرات',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    if (arrears != null)
+                      Text(
+                        formatEgp(arrears.totalFor(n)),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: months.isEmpty
+                              ? incomeColor
+                              : theme.colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (arrears == null)
+                  const LinearProgressIndicator()
+                else if (!apartment.feeEligible || !apartment.inService)
+                  const Text('لا تُحسب عليها اشتراكات حاليًا')
+                else if (months.isEmpty)
+                  const Text('لا توجد شهور غير مدفوعة')
+                else ...[
+                  for (final MapEntry(key: year, value: owed)
+                      in carried.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'متأخرات ${toArabicDigits('$year')}: ${formatEgp(owed)}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  if (thisYear.isNotEmpty)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final m in thisYear)
+                          Chip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text(
+                              '${arabicMonths[periodMonth(m.period) - 1]}'
+                              ' · ${formatEgp(m.owed)}',
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => showPaymentSheet(
+                    context,
+                    apartment: apartment,
+                    startPeriod: months.isEmpty ? null : months.first.period,
+                  ),
+                  icon: const Icon(Icons.date_range_outlined),
+                  label: const Text('تسجيل دفعة اشتراك'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

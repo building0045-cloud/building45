@@ -20,6 +20,17 @@ void main() {
       expect(Apartment.fromMap('7', apartment.toMap()), apartment);
     });
 
+    test('keeps its own monthly fee, or none for the default', () {
+      const custom = Apartment(id: '5', number: 5, monthlyFee: 5000);
+
+      expect(Apartment.fromMap('5', custom.toMap()), custom);
+      expect(Apartment.fromMap('5', custom.toMap()).feeOr(10000), 5000);
+      final plain = Apartment.fromMap('6', {'number': 6});
+      expect(plain.monthlyFee, isNull);
+      expect(plain.feeOr(10000), 10000);
+      expect(custom.copyWith(monthlyFee: () => null).monthlyFee, isNull);
+    });
+
     test('has no display name when nobody is registered', () {
       final apartment = Apartment.fromMap('3', {'number': 3});
 

@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/building_refs.dart';
 import '../../../core/money.dart';
 import '../../../core/periods.dart';
+import '../../subscriptions/data/arrears.dart';
+import '../../subscriptions/data/collection_message.dart';
 import 'ledger_tx.dart';
 
 /// Default monthly subscription: 100 EGP.
@@ -69,6 +71,79 @@ class LedgerRepository {
       target: _fees.path,
       summary: 'تغيير الاشتراك الشهري إلى ${formatEgp(piastres)}',
       after: {'monthlyFee': piastres},
+    );
+    return batch.commit();
+  }
+
+  DocumentReference<JsonMap> get _collectionMessage =>
+      _refs.building.collection('settings').doc('collectionMessage');
+
+  DocumentReference<JsonMap> _yearClose(int year) =>
+      _refs.building.collection('settings').doc('yearClose_$year');
+
+  Stream<CollectionTemplate> watchCollectionTemplate() => _collectionMessage
+      .snapshots()
+      .map((s) => CollectionTemplate.fromMap(s.data()));
+
+  Future<void> saveCollectionTemplate(
+    CollectionTemplate template, {
+    required String byUid,
+  }) {
+    final batch = _refs.db.batch()..set(_collectionMessage, template.toMap());
+    _refs.addAudit(
+      batch,
+      by: byUid,
+      action: 'settings.collectionMessage',
+      target: _collectionMessage.path,
+      summary: 'تعديل نص رسالة التحصيل',
+      after: template.toMap(),
+    );
+    return batch.commit();
+  }
+
+  /// When [year] was closed, or null if it was not.
+  Stream<DateTime?> watchYearClose(int year) =>
+      _yearClose(year)
+          .snapshots()
+          .map((s) => (s.data()?['closedAt'] as Timestamp?)?.toDate());
+
+  /// Saves what each apartment still owed for [year] as a record. The
+  /// live arrears keep counting those months until they are paid.
+  Future<void> closeYear(int year, Arrears arrears, {required String byUid}) {
+    final apartments = <String, dynamic>{
+      for (final n in arrears.byApartment.keys)
+        if (arrears.monthsFor(n).any((m) => periodYear(m.period) <= year))
+          '$n': {
+            'owed': [
+              for (final m in arrears.monthsFor(n))
+                if (periodYear(m.period) <= year) m.owed,
+            ].fold(0, (s, v) => s + v),
+            'months': [
+              for (final m in arrears.monthsFor(n))
+                if (periodYear(m.period) <= year)
+                  {'period': m.period, 'owed': m.owed},
+            ],
+          },
+    };
+    final total = [for (final a in apartments.values) (a as Map)['owed'] as int]
+        .fold(0, (s, v) => s + v);
+    final ref = _yearClose(year);
+    final batch = _refs.db.batch()
+      ..set(ref, {
+        'year': year,
+        'closedAt': FieldValue.serverTimestamp(),
+        'byUid': byUid,
+        'total': total,
+        'apartments': apartments,
+      });
+    _refs.addAudit(
+      batch,
+      by: byUid,
+      action: 'subscriptions.closeYear',
+      target: ref.path,
+      summary:
+          'إقفال سنة ${toArabicDigits('$year')}: متأخرات ${formatEgp(total)} '
+          'تُرحَّل للسنة التالية',
     );
     return batch.commit();
   }

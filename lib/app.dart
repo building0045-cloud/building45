@@ -23,6 +23,7 @@ import 'features/settings/view/member_page.dart';
 import 'features/sheet_import/data/import_item.dart';
 import 'features/sheet_import/view/sheet_data_page.dart';
 import 'features/shell/view/home_shell.dart';
+import 'features/subscriptions/view/collection_message_page.dart';
 
 class HomeSystemApp extends StatefulWidget {
   const HomeSystemApp({
@@ -96,6 +97,10 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
                 path: 'projects/:gid',
                 builder: (_, state) =>
                     ProjectDetailPage(sheetGid: state.pathParameters['gid']!),
+              ),
+              GoRoute(
+                path: 'collection-message',
+                builder: (_, _) => const CollectionMessagePage(),
               ),
               GoRoute(
                 path: 'apartments/:id',

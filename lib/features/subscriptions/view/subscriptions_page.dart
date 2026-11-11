@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/money.dart';
 import '../../../core/periods.dart';
@@ -166,12 +167,20 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 children: [
                   _MonthPicker(period: _period, onSelect: _select),
                   _SummaryCard(period: _period, summary: summary, fee: fee),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.go('/app/collection-message'),
+                      icon: const Icon(Icons.campaign_outlined),
+                      label: const Text('رسالة التحصيل الشهرية'),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   for (final s in summary.statuses)
                     _Row(
                       status: s,
                       period: _period,
-                      fee: fee,
+                      fee: s.apartment.feeOr(fee),
                       monthSheet: monthSheet,
                     ),
                 ],
@@ -281,7 +290,9 @@ class _SummaryCard extends StatelessWidget {
       context,
       title: 'الاشتراك الشهري',
       initial: fee,
-      message: 'المبلغ الذي يُسجَّل عند الضغط على علامة التحصيل.',
+      message:
+          'المبلغ الافتراضي للشقق التي ليس لها اشتراك خاص. '
+          'يُحدَّد اشتراك كل شقة من صفحتها.',
     );
     if (amount != null && amount != fee) {
       await repo.setMonthlyFee(amount, byUid: session.user.uid);
@@ -316,7 +327,7 @@ class _SummaryCard extends StatelessWidget {
                     isAdmin ? Icons.edit_outlined : Icons.sell_outlined,
                     size: 16,
                   ),
-                  label: Text('${formatEgp(fee)} / شهر'),
+                  label: Text('الافتراضي ${formatEgp(fee)} / شهر'),
                   onPressed: isAdmin ? () => _editFee(context) : null,
                 ),
               ],

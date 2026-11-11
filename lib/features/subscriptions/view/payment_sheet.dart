@@ -228,7 +228,12 @@ class _PaymentSheetState extends State<_PaymentSheet> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          return _form(context, feeSnap.data!, ledger, sheetSnap.data!);
+          return _form(
+            context,
+            widget.apartment.feeOr(feeSnap.data!),
+            ledger,
+            sheetSnap.data!,
+          );
         },
       ),
     );

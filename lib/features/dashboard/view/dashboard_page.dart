@@ -87,6 +87,13 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             const SizedBox(height: 16),
+            ArrearsBuilder(
+              builder: (context, arrears) => _CollectionMessageCard(
+                period: period,
+                owing: arrears?.apartmentsOwing ?? 0,
+              ),
+            ),
+            const SizedBox(height: 16),
             _ApartmentStats(apartments: apartments),
             const SizedBox(height: 16),
             StreamBuilder<List<ImportItem>>(
@@ -319,6 +326,14 @@ class _BalanceCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
+                            if (arrears.carriedTotal > 0)
+                              Text(
+                                'منها متأخرات سنوات سابقة: '
+                                '${formatEgp(arrears.carriedTotal)}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -495,6 +510,38 @@ class _Panel extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(padding: padding, child: child),
+      ),
+    );
+  }
+}
+
+/// Points to the monthly collection message; prominent in the first days
+/// of the month, when it is sent.
+class _CollectionMessageCard extends StatelessWidget {
+  const _CollectionMessageCard({required this.period, required this.owing});
+
+  final String period;
+  final int owing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final due = DateTime.now().day <= 5 && owing > 0;
+    final month = arabicMonths[periodMonth(period) - 1];
+    return Card(
+      margin: EdgeInsets.zero,
+      color: due ? theme.colorScheme.primaryContainer : null,
+      child: ListTile(
+        leading: const Icon(Icons.campaign_outlined),
+        title: Text(due ? 'رسالة تحصيل شهر $month جاهزة' : 'رسالة التحصيل'),
+        subtitle: Text(
+          owing == 0
+              ? 'لا توجد شقق عليها اشتراكات'
+              : '${toArabicDigits('$owing')} شقة عليها اشتراكات · '
+                    'انسخها أو شاركها على جروب العمارة',
+        ),
+        trailing: const Icon(Icons.chevron_left),
+        onTap: () => context.go('/app/collection-message'),
       ),
     );
   }

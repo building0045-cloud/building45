@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/money.dart';
+import '../../../core/periods.dart';
 import '../../auth/cubit/session_cubit.dart';
 import '../../auth/data/member.dart';
+import '../../ledger/cubit/ledger_cubit.dart';
+import '../../subscriptions/data/arrears.dart';
 import '../data/members_repository.dart';
 
 /// "المزيد": account, staff management (admin only) and sign-out.
@@ -51,6 +55,8 @@ class MorePage extends StatelessWidget {
                 },
               ),
               const Divider(height: 32),
+              _CloseYearTile(byUid: me.uid),
+              const Divider(height: 32),
               Text('المسؤولون', style: theme.textTheme.titleMedium),
               StreamBuilder<List<Member>>(
                 stream: repo.watchMembers(),
@@ -82,6 +88,88 @@ class MorePage extends StatelessWidget {
               label: const Text('تسجيل الخروج'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Admin action that records the unpaid amounts of the year being closed.
+/// The previous year can be closed, and the current one in December.
+class _CloseYearTile extends StatelessWidget {
+  const _CloseYearTile({required this.byUid});
+
+  final String byUid;
+
+  static int get _year {
+    final now = DateTime.now();
+    return now.month == 12 ? now.year : now.year - 1;
+  }
+
+  Future<void> _close(BuildContext context, Arrears arrears, int year) async {
+    final repo = context.read<LedgerCubit>().repo;
+    final messenger = ScaffoldMessenger.of(context);
+    final owed = [
+      for (final months in arrears.byApartment.values)
+        for (final m in months)
+          if (periodYear(m.period) <= year) m.owed,
+    ].fold(0, (s, v) => s + v);
+    final y = toArabicDigits('$year');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('إقفال سنة $y'),
+        content: Text(
+          'سيتم حفظ متأخرات $y (${formatEgp(owed)}) كسجل، وتظهر كمتأخرات '
+          'مُرحَّلة في السنة التالية حتى تُدفع.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('إقفال'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await repo.closeYear(year, arrears, byUid: byUid);
+      messenger.showSnackBar(SnackBar(content: Text('تم إقفال سنة $y')));
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('تعذر الإقفال، حاول مرة أخرى')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final year = _year;
+    if (year < periodYear(duesStartPeriod)) return const SizedBox.shrink();
+    final y = toArabicDigits('$year');
+    return StreamBuilder<DateTime?>(
+      stream: context.read<LedgerCubit>().repo.watchYearClose(year),
+      builder: (context, closed) => ArrearsBuilder(
+        to: year == DateTime.now().year ? null : '$year-12',
+        builder: (context, arrears) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.event_available_outlined),
+          title: Text('إقفال سنة $y'),
+          subtitle: Text(
+            closed.data != null
+                ? 'أُقفلت في ${formatDate(closed.data!)}'
+                : 'حفظ متأخرات السنة وترحيلها للسنة التالية',
+          ),
+          trailing: arrears == null
+              ? null
+              : TextButton(
+                  onPressed: () => _close(context, arrears, year),
+                  child: Text(closed.data != null ? 'إعادة الإقفال' : 'إقفال'),
+                ),
         ),
       ),
     );
