@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/money.dart';
 import '../../../core/periods.dart';
+import '../../../core/phone.dart';
 import '../../apartments/cubit/apartments_cubit.dart';
 import '../../apartments/view/apartments_page.dart' show whatsappGreen;
 import '../../auth/cubit/session_cubit.dart';
@@ -74,12 +74,7 @@ class _CollectionMessagePageState extends State<CollectionMessagePage> {
 
   Future<void> _share() async {
     final messenger = ScaffoldMessenger.of(context);
-    final uri = Uri.https('wa.me', '/', {'text': _text.text});
-    var opened = false;
-    try {
-      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {}
-    if (!opened) {
+    if (!await launchWhatsApp(text: _text.text)) {
       messenger.showSnackBar(
         const SnackBar(
           content: Text('تعذر فتح واتساب، انسخ الرسالة بدلًا من ذلك'),
@@ -149,7 +144,7 @@ class _CollectionMessagePageState extends State<CollectionMessagePage> {
                         IconButton(
                           tooltip: 'الشهر السابق',
                           onPressed: () => _shift(-1),
-                          icon: const Icon(Icons.chevron_right),
+                          icon: const Icon(Icons.chevron_left),
                         ),
                         Text(
                           periodLabel(_period),
@@ -158,7 +153,7 @@ class _CollectionMessagePageState extends State<CollectionMessagePage> {
                         IconButton(
                           tooltip: 'الشهر التالي',
                           onPressed: () => _shift(1),
-                          icon: const Icon(Icons.chevron_left),
+                          icon: const Icon(Icons.chevron_right),
                         ),
                       ],
                     ),

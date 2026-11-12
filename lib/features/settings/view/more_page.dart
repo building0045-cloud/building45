@@ -33,7 +33,7 @@ class MorePage extends StatelessWidget {
               leading: const CircleAvatar(child: Icon(Icons.person)),
               title: Text(me.name),
               subtitle: Text('${me.role.label} · ${me.email}'),
-              trailing: const Icon(Icons.chevron_left),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () => context.go('/app/members/${me.uid}'),
             ),
             if (me.isAdmin) ...[
@@ -78,7 +78,7 @@ class MorePage extends StatelessWidget {
               leading: const Icon(Icons.table_chart_outlined),
               title: const Text('بيانات الشيت القديم'),
               subtitle: const Text('نسخة للمراجعة من ملف الإكسل'),
-              trailing: const Icon(Icons.chevron_left),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () => context.go('/app/sheet'),
             ),
             const Divider(height: 32),
@@ -256,7 +256,7 @@ class _MemberTile extends StatelessWidget {
       leading: const CircleAvatar(child: Icon(Icons.person_outline)),
       title: Text(isMe ? '${member.name} (أنت)' : member.name),
       subtitle: Text('${member.role.label}${member.active ? '' : ' · موقوف'}'),
-      trailing: const Icon(Icons.chevron_left),
+      trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go('/app/members/${member.uid}'),
     );
   }

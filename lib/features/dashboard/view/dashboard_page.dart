@@ -337,7 +337,7 @@ class _BalanceCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_left, color: Colors.white54),
+                      const Icon(Icons.chevron_right, color: Colors.white54),
                     ],
                   ),
                 ),
@@ -540,7 +540,7 @@ class _CollectionMessageCard extends StatelessWidget {
               : '${toArabicDigits('$owing')} شقة عليها اشتراكات · '
                     'انسخها أو شاركها على جروب العمارة',
         ),
-        trailing: const Icon(Icons.chevron_left),
+        trailing: const Icon(Icons.chevron_right),
         onTap: () => context.go('/app/collection-message'),
       ),
     );

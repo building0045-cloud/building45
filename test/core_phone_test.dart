@@ -27,4 +27,19 @@ void main() {
     expect(Apartment.floorName(0), 'الدور الأرضي');
     expect(Apartment.floorName(5), 'الدور الخامس');
   });
+
+  test('WhatsApp links open the app on phones and WhatsApp Web elsewhere', () {
+    expect(
+      whatsappUri(phone: '01020874288', mobile: true).toString(),
+      'whatsapp://send?phone=201020874288',
+    );
+    expect(
+      whatsappUri(text: 'شقه 8\nمتأخر', mobile: false).toString(),
+      'https://web.whatsapp.com/send?text=${Uri.encodeComponent('شقه 8\nمتأخر')}',
+    );
+    expect(
+      whatsappUri(text: 'a b', mobile: true).toString(),
+      'whatsapp://send?text=a%20b',
+    );
+  });
 }
