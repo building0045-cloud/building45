@@ -157,7 +157,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             sheetItems,
           );
           final monthSheet = sheetItems
-              .where((i) => i.period == _period)
+              .where((i) => i.period == _period && !i.isAppRecord)
               .firstOrNull;
           return Center(
             child: ConstrainedBox(
@@ -499,13 +499,15 @@ class _Row extends StatelessWidget {
       title: Text(a.displayName ?? 'غير معروف'),
       subtitle: subtitle.isEmpty ? null : Text(subtitle.join(' · ')),
       trailing: trailing,
-      // Spreadsheet months keep their records editable.
-      onTap: payment == null && monthSheet != null
+      // Spreadsheet months keep their records editable. Other months can
+      // be marked as paid in another month (e.g. 2027 paid in 2026).
+      onTap: payment == null
           ? () => editSheetContribution(
               context,
-              sheet: monthSheet!,
+              sheet: monthSheet ?? ImportItem.appSheet(period),
               existing: sheet,
               apartment: a,
+              referenceOnly: monthSheet == null,
             )
           : null,
     );

@@ -83,9 +83,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: AppColors.ink,
+                    ),
                     onPressed: () => widget.onOpenTab(2),
-                    icon: const Icon(Icons.check_circle_outline),
+                    icon: const CollectIcon(),
                     label: const Text('تحصيل اشتراك'),
                   ),
                 ),

@@ -31,7 +31,9 @@ class _SheetDataPageState extends State<SheetDataPage> {
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final all = snap.data!;
+          // Records made in the app for months without a sheet are not
+          // spreadsheet data.
+          final all = snap.data!.where((i) => !i.isAppRecord).toList();
           if (all.isEmpty) {
             return const Center(child: Text('لم تُستورد بيانات بعد'));
           }

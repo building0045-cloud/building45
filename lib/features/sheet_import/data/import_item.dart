@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../core/building_refs.dart';
 import '../../../core/money.dart';
+import '../../../core/periods.dart';
 
 export '../../../core/money.dart' show parseAmount;
 
@@ -33,6 +34,32 @@ const settledText = 'خالص';
 const notHandedOverText = 'لم يتسلم الوحده';
 const paidInPrefix = 'تم الدفع في';
 
+/// "Paid in another month" text for [period], e.g. `تم الدفع في نوفمبر ٢٠٢٦`.
+String paidInText(String period) =>
+    '$paidInPrefix ${arabicMonths[periodMonth(period) - 1]} '
+    '${toArabicDigits('${periodYear(period)}')}';
+
+/// Month (1-12) and, when written, year of a "paid in another month" text.
+/// Older texts name only the month.
+({int month, int? year})? parsePaidIn(String text) {
+  final t = text.trim();
+  if (!t.startsWith(paidInPrefix)) return null;
+  final rest = t.substring(paidInPrefix.length);
+  final month = arabicMonths.indexWhere(rest.contains) + 1;
+  if (month == 0) return null;
+  const arabic = '٠١٢٣٤٥٦٧٨٩';
+  final digits = rest.split('').map((c) {
+    final i = arabic.indexOf(c);
+    return i >= 0 ? '$i' : c;
+  }).join();
+  final year = RegExp(r'\d{4}').firstMatch(digits)?.group(0);
+  return (month: month, year: year == null ? null : int.parse(year));
+}
+
+/// Sheet id for records made in the app for a month that has no imported
+/// spreadsheet (e.g. a 2027 month paid in 2026).
+const appSheetPrefix = 'app_';
+
 /// Kind of an apartment's contribution cell, from its text.
 ImportKind classifyContribution(String text) {
   final t = text.trim();
@@ -58,6 +85,22 @@ class ImportItem extends Equatable {
     required this.originalKind,
     required this.status,
   });
+
+  /// Stand-in sheet for [period] when the month has no spreadsheet.
+  factory ImportItem.appSheet(String period) => ImportItem(
+    id: '',
+    sheetGid: '$appSheetPrefix$period',
+    sheetName: periodLabel(period),
+    period: period,
+    cell: '',
+    row: 0,
+    col: 3,
+    originalText: '',
+    editedText: null,
+    apartmentNumber: null,
+    originalKind: ImportKind.note,
+    status: 'manual',
+  );
 
   factory ImportItem.fromMap(String id, JsonMap map) => ImportItem(
     id: id,
@@ -95,6 +138,9 @@ class ImportItem extends Equatable {
   final String status;
 
   bool get isEdited => editedText != null;
+
+  /// Made in the app for a month without a spreadsheet; not a sheet itself.
+  bool get isAppRecord => sheetGid.startsWith(appSheetPrefix);
 
   /// Current value: the edit when there is one, else the sheet's text.
   String get text => (editedText ?? originalText).trim();

@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../apartments/cubit/apartments_cubit.dart';
 import '../../apartments/data/apartment.dart';
+import '../../../core/money.dart';
+import '../../../core/periods.dart';
 import '../../auth/cubit/session_cubit.dart';
 import '../data/import_item.dart';
 
@@ -44,7 +46,9 @@ class _ContributionsPageState extends State<ContributionsPage> {
           return const Center(child: CircularProgressIndicator());
         }
         final all = snap.data!
-            .where((i) => (i.period == null) == widget.projects)
+            .where(
+              (i) => (i.period == null) == widget.projects && !i.isAppRecord,
+            )
             .toList();
         if (all.isEmpty) {
           return const Center(child: Text('لا توجد بيانات مستوردة من الشيت'));
@@ -243,6 +247,7 @@ Future<void> editSheetContribution(
   required ImportItem sheet,
   required ImportItem? existing,
   required Apartment apartment,
+  bool referenceOnly = false,
 }) async {
   final session = context.read<SessionCubit>().state;
   if (session is! SessionActive) return;
@@ -254,6 +259,8 @@ Future<void> editSheetContribution(
       title: 'شقة ${apartment.number} · ${sheet.sheetName}',
       initial: existing?.text ?? '',
       monthly: sheet.period != null,
+      editedPeriod: sheet.period,
+      referenceOnly: referenceOnly,
     ),
   );
   if (text == null || text == (existing?.text ?? '')) return;
@@ -333,11 +340,20 @@ class _ContributionDialog extends StatefulWidget {
     required this.title,
     required this.initial,
     required this.monthly,
+    this.editedPeriod,
+    this.referenceOnly = false,
   });
 
   final String title;
   final String initial;
   final bool monthly;
+
+  /// `yyyy-MM` of the month being edited, for monthly sheets.
+  final String? editedPeriod;
+
+  /// The month has no spreadsheet: only say it was paid elsewhere (or
+  /// settled). Money is collected with the payment buttons instead.
+  final bool referenceOnly;
 
   @override
   State<_ContributionDialog> createState() => _ContributionDialogState();
@@ -347,15 +363,24 @@ class _ContributionDialogState extends State<_ContributionDialog> {
   final _formKey = GlobalKey<FormState>();
   late _Choice _choice;
   final _amount = TextEditingController();
-  final _month = TextEditingController();
   final _other = TextEditingController();
+
+  /// Month and year the payment was made, for "paid in another month".
+  late int _paidMonth;
+  late int _paidYear;
+
+  int get _firstYear => periodYear(firstPeriod);
+  int get _lastYear => periodYear(lastOpenPeriod());
 
   @override
   void initState() {
     super.initState();
     final text = widget.initial;
+    final edited = widget.editedPeriod ?? currentPeriod();
+    _paidMonth = periodMonth(edited);
+    _paidYear = periodYear(edited);
     if (text.isEmpty) {
-      _choice = _Choice.amount;
+      _choice = widget.referenceOnly ? _Choice.paidIn : _Choice.amount;
     } else {
       switch (classifyContribution(text)) {
         case ImportKind.payment:
@@ -365,7 +390,11 @@ class _ContributionDialogState extends State<_ContributionDialog> {
           _choice = _Choice.settled;
         case ImportKind.paymentReference:
           _choice = _Choice.paidIn;
-          _month.text = text.substring(paidInPrefix.length).trim();
+          final paid = parsePaidIn(text);
+          if (paid != null) {
+            _paidMonth = paid.month;
+            _paidYear = (paid.year ?? _paidYear).clamp(_firstYear, _lastYear);
+          }
         case ImportKind.notHandedOverNote:
           _choice = _Choice.notHandedOver;
         default:
@@ -378,7 +407,6 @@ class _ContributionDialogState extends State<_ContributionDialog> {
   @override
   void dispose() {
     _amount.dispose();
-    _month.dispose();
     _other.dispose();
     super.dispose();
   }
@@ -388,7 +416,9 @@ class _ContributionDialogState extends State<_ContributionDialog> {
     final text = switch (_choice) {
       _Choice.amount => _money(parseAmount(_amount.text)!),
       _Choice.settled => settledText,
-      _Choice.paidIn => '$paidInPrefix ${_month.text.trim()}',
+      _Choice.paidIn => paidInText(
+        '$_paidYear-${_paidMonth.toString().padLeft(2, '0')}',
+      ),
       _Choice.notHandedOver => notHandedOverText,
       _Choice.other => _other.text.trim(),
       _Choice.none => '',
@@ -400,11 +430,18 @@ class _ContributionDialogState extends State<_ContributionDialog> {
   Widget build(BuildContext context) {
     final choices = [
       for (final c in _Choice.values)
-        if (widget.monthly ||
-            c == _Choice.amount ||
-            c == _Choice.other ||
-            c == _Choice.none ||
-            c == _choice)
+        if (widget.referenceOnly
+            ? const {
+                    _Choice.paidIn,
+                    _Choice.settled,
+                    _Choice.none,
+                  }.contains(c) ||
+                  c == _choice
+            : widget.monthly ||
+                  c == _Choice.amount ||
+                  c == _Choice.other ||
+                  c == _Choice.none ||
+                  c == _choice)
           c,
     ];
     return AlertDialog(
@@ -446,14 +483,40 @@ class _ContributionDialogState extends State<_ContributionDialog> {
                   onFieldSubmitted: (_) => _submit(),
                 ),
               if (_choice == _Choice.paidIn)
-                TextFormField(
-                  controller: _month,
-                  decoration: const InputDecoration(
-                    labelText: 'الشهر الذي تم فيه الدفع',
-                    hintText: 'مثال: مايو',
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'اكتب اسم الشهر' : null,
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: DropdownButtonFormField<int>(
+                        initialValue: _paidMonth,
+                        decoration: const InputDecoration(labelText: 'الشهر'),
+                        items: [
+                          for (var m = 1; m <= 12; m++)
+                            DropdownMenuItem(
+                              value: m,
+                              child: Text(arabicMonths[m - 1]),
+                            ),
+                        ],
+                        onChanged: (m) => setState(() => _paidMonth = m!),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonFormField<int>(
+                        initialValue: _paidYear,
+                        decoration: const InputDecoration(labelText: 'السنة'),
+                        items: [
+                          for (var y = _firstYear; y <= _lastYear; y++)
+                            DropdownMenuItem(
+                              value: y,
+                              child: Text(toArabicDigits('$y')),
+                            ),
+                        ],
+                        onChanged: (y) => setState(() => _paidYear = y!),
+                      ),
+                    ),
+                  ],
                 ),
               if (_choice == _Choice.other)
                 TextFormField(

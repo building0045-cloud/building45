@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:home_system/features/apartments/data/apartment.dart';
 import 'package:home_system/features/sheet_import/data/import_item.dart';
+import 'package:home_system/features/subscriptions/view/subscriptions_page.dart';
 
 ImportItem _item({
   String original = '',
@@ -65,5 +67,62 @@ void main() {
 
     expect(item.text, isEmpty);
     expect(item.amount, isNull);
+  });
+
+  group('paid in another month', () {
+    test('text names the month and year', () {
+      expect(paidInText('2026-11'), 'تم الدفع في نوفمبر ٢٠٢٦');
+      expect(
+        classifyContribution(paidInText('2026-11')),
+        ImportKind.paymentReference,
+      );
+    });
+
+    test('reads month and year, with Arabic or Latin digits', () {
+      expect(parsePaidIn('تم الدفع في نوفمبر ٢٠٢٦'), (month: 11, year: 2026));
+      expect(parsePaidIn('تم الدفع في مايو 2025'), (month: 5, year: 2025));
+    });
+
+    test('older texts have only the month', () {
+      expect(parsePaidIn('تم الدفع في مايو'), (month: 5, year: null));
+    });
+
+    test('anything else is not a paid-in text', () {
+      expect(parsePaidIn('خالص'), isNull);
+      expect(parsePaidIn('تم الدفع في وقت ما'), isNull);
+    });
+
+    test('a month without a sheet can be marked paid in another month', () {
+      final sheet = ImportItem.appSheet('2027-01');
+      expect(sheet.isAppRecord, isTrue);
+      expect(sheet.sheetName, 'يناير ٢٠٢٧');
+
+      // What saveContribution stores for apartment 24.
+      final record = ImportItem.fromMap('app_2027-01_C25', {
+        'sheetGid': sheet.sheetGid,
+        'sheetName': sheet.sheetName,
+        'period': '2027-01',
+        'cell': 'C25',
+        'row': 25,
+        'col': 3,
+        'originalText': '',
+        'editedText': paidInText('2026-11'),
+        'apartmentNumber': 24,
+        'proposedKind': 'note',
+      });
+      const apt = Apartment(
+        id: '24',
+        number: 24,
+        status: ApartmentStatus.occupied,
+        feeEligible: true,
+        contacts: [],
+      );
+
+      final summary = summarizeMonth('2027-01', [apt], null, [record]);
+
+      expect(record.isAppRecord, isTrue);
+      expect(summary.statuses.single.isPaid, isTrue);
+      expect(summary.collected, 0);
+    });
   });
 }

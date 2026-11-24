@@ -33,6 +33,23 @@ class ExpenseIcon extends StatelessWidget {
   }
 }
 
+/// Collect-subscription icon (Icons8 dotty "receive-change"). A mask, so
+/// it takes the button's foreground color.
+class CollectIcon extends StatelessWidget {
+  const CollectIcon({super.key, this.size = 24});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ImageIcon(
+      const AssetImage('assets/images/receive_money.png'),
+      size: size,
+      semanticLabel: 'تحصيل',
+    );
+  }
+}
+
 class TxTile extends StatelessWidget {
   const TxTile({super.key, required this.tx});
 
