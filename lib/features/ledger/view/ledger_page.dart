@@ -51,7 +51,7 @@ class _LedgerPageState extends State<LedgerPage> {
         backgroundColor: expenseActionColor,
         foregroundColor: Colors.white,
         onPressed: () => showAddExpense(context),
-        icon: const Icon(Icons.add),
+        icon: const ExpenseIcon(),
         label: const Text('إضافة مصروف'),
       ),
       body: BlocBuilder<LedgerCubit, LedgerState>(

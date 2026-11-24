@@ -77,7 +77,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () => showAddExpense(context),
-                    icon: const Icon(Icons.remove_circle_outline),
+                    icon: const ExpenseIcon(),
                     label: const Text('إضافة مصروف'),
                   ),
                 ),

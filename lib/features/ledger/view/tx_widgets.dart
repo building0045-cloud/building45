@@ -13,8 +13,25 @@ import '../data/ledger_tx.dart';
 const incomeColor = Color(0xFF16A34A);
 const expenseColor = Color(0xFFDC2626);
 
-/// Deep maroon for actions that take money out of the balance.
-const expenseActionColor = Color(0xFF991B1B);
+/// Red for actions that take money out of the balance.
+const expenseActionColor = Color(0xFFDC2626);
+
+/// Add-expense icon (Vecteezy "reduce expense" 30926575). It is a mask,
+/// so it takes the button's foreground color (white on red).
+class ExpenseIcon extends StatelessWidget {
+  const ExpenseIcon({super.key, this.size = 22});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ImageIcon(
+      const AssetImage('assets/images/reduce_expense.png'),
+      size: size,
+      semanticLabel: 'مصروف',
+    );
+  }
+}
 
 class TxTile extends StatelessWidget {
   const TxTile({super.key, required this.tx});
