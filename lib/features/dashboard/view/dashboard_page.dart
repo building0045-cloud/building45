@@ -64,6 +64,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 period: period,
                 arrears: arrears,
                 onOpenArrears: () => widget.onOpenTab(1),
+                onOpenBalance: () => context.go('/app/balances'),
               ),
             ),
             const SizedBox(height: 16),
@@ -71,6 +72,10 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 Expanded(
                   child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: expenseActionColor,
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: () => showAddExpense(context),
                     icon: const Icon(Icons.remove_circle_outline),
                     label: const Text('إضافة مصروف'),
@@ -195,6 +200,7 @@ class _BalanceCard extends StatelessWidget {
     required this.period,
     required this.arrears,
     required this.onOpenArrears,
+    required this.onOpenBalance,
   });
 
   final int balance;
@@ -203,6 +209,9 @@ class _BalanceCard extends StatelessWidget {
   final String period;
   final Arrears? arrears;
   final VoidCallback onOpenArrears;
+
+  /// Opens what each staff member holds.
+  final VoidCallback onOpenBalance;
 
   @override
   Widget build(BuildContext context) {
@@ -221,49 +230,63 @@ class _BalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  color: AppColors.ink,
-                  size: 20,
-                ),
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onOpenBalance,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: AppColors.ink,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'الرصيد الحالي',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: onDark.withValues(alpha: 0.8),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.chevron_right, color: Colors.white54),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        formatAmount(balance),
+                        style: theme.textTheme.displayMedium?.copyWith(
+                          color: onDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'ج.م',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: onDark.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Text(
-                'الرصيد الحالي',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: onDark.withValues(alpha: 0.8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                formatAmount(balance),
-                style: theme.textTheme.displayMedium?.copyWith(
-                  color: onDark,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'ج.م',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: onDark.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -274,6 +297,8 @@ class _BalanceCard extends StatelessWidget {
                   value: income,
                   icon: Icons.south_west,
                   color: AppColors.accent,
+                  onTap: () =>
+                      context.go('/app/ledger?type=income&months=$period'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -283,6 +308,8 @@ class _BalanceCard extends StatelessWidget {
                   value: expenses,
                   icon: Icons.north_east,
                   color: const Color(0xFFFF8A80),
+                  onTap: () =>
+                      context.go('/app/ledger?type=expense&months=$period'),
                 ),
               ),
             ],
@@ -356,47 +383,54 @@ class _MiniStat extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    required this.onTap,
   });
 
   final String label;
   final int value;
   final IconData icon;
   final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+    return Material(
+      color: Colors.white.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.white70,
-                  ),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                    Text(
+                      formatEgp(value),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  formatEgp(value),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white54, size: 18),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

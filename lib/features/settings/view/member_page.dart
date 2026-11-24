@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../app_theme.dart';
 import '../../../core/money.dart';
 import '../../auth/data/member.dart';
 import '../../ledger/cubit/ledger_cubit.dart';
@@ -31,12 +32,14 @@ class MemberPage extends StatelessWidget {
               if (state is! LedgerLoaded) {
                 return const Center(child: Text('تعذر تحميل السجل'));
               }
-              final mine = state.txs
-                  .where((t) => t.createdBy == uid && t.type != TxType.opening)
-                  .toList();
+              final mine = state.txs.where((t) => t.createdBy == uid).toList();
               final counted = mine.where((t) => !t.voided);
+              // The opening balance was handed over, not collected.
+              final opening = counted
+                  .where((t) => t.type == TxType.opening)
+                  .fold(0, (s, t) => s + t.amount);
               final collected = counted
-                  .where((t) => !t.isOutgoing)
+                  .where((t) => !t.isOutgoing && t.type != TxType.opening)
                   .fold(0, (s, t) => s + t.amount);
               final paid = counted
                   .where((t) => t.isOutgoing)
@@ -55,6 +58,13 @@ class MemberPage extends StatelessWidget {
                           title: Text(member.name),
                           subtitle: Text(member.role.label),
                         ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: _HeldCard(
+                          held: balanceOf(mine),
+                          opening: opening,
+                        ),
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
@@ -138,6 +148,88 @@ class _Total extends StatelessWidget {
             Text(label, style: theme.textTheme.bodySmall),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Money the staff member holds now: their opening share plus what they
+/// collected, minus what they paid.
+class _HeldCard extends StatelessWidget {
+  const _HeldCard({required this.held, required this.opening});
+
+  final int held;
+  final int opening;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: [AppColors.ink, AppColors.inkSoft],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: AppColors.ink,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'الرصيد معه الآن',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                formatAmount(held),
+                textDirection: TextDirection.ltr,
+                style: theme.textTheme.displaySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'ج.م',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+          if (opening > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              'منها رصيد افتتاحي ${formatEgp(opening)}',
+              style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+            ),
+          ],
+        ],
       ),
     );
   }

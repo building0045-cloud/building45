@@ -44,3 +44,19 @@ String lastOpenPeriod([DateTime? now]) =>
 
 String formatDate(DateTime d) =>
     '${toArabicDigits('${d.day}')} ${arabicMonths[d.month - 1]} ${toArabicDigits('${d.year}')}';
+
+/// Arabic label for a set of `yyyy-MM` months chosen in a filter.
+/// Empty means no date filter.
+String describeSelection(Set<String> periods) {
+  if (periods.isEmpty) return 'كل الفترات';
+  final sorted = periods.toList()..sort();
+  if (sorted.length == 1) return periodLabel(sorted.first);
+  final years = {for (final p in sorted) periodYear(p)};
+  if (years.length == 1 && sorted.length == 12) {
+    return 'سنة ${toArabicDigits('${years.first}')}';
+  }
+  final count = sorted.length == 2
+      ? 'شهرين'
+      : '${toArabicDigits('${sorted.length}')} شهور';
+  return '$count (${periodLabel(sorted.first)} – ${periodLabel(sorted.last)})';
+}

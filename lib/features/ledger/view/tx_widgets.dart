@@ -13,6 +13,9 @@ import '../data/ledger_tx.dart';
 const incomeColor = Color(0xFF16A34A);
 const expenseColor = Color(0xFFDC2626);
 
+/// Deep maroon for actions that take money out of the balance.
+const expenseActionColor = Color(0xFF991B1B);
+
 class TxTile extends StatelessWidget {
   const TxTile({super.key, required this.tx});
 

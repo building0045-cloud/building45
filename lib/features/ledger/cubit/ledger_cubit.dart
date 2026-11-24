@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/periods.dart';
 import '../data/ledger_repository.dart';
 import '../data/ledger_tx.dart';
 
@@ -27,21 +28,26 @@ final class LedgerLoaded extends LedgerState {
   final List<LedgerTx> txs;
   final int balance;
 
-  Iterable<LedgerTx> _inPeriod(String period) => txs.where(
+  /// Counted entries dated in [periods], without the opening balance. An
+  /// empty set means every month.
+  Iterable<LedgerTx> _inPeriods(Set<String> periods) => txs.where(
     (t) =>
         !t.voided &&
         t.type != TxType.opening &&
-        '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}' == period,
+        (periods.isEmpty || periods.contains(periodOf(t.date))),
   );
 
-  int incomeIn(String period) =>
-      _inPeriod(period)
+  int incomeInPeriods(Set<String> periods) =>
+      _inPeriods(periods)
           .where((t) => !t.isOutgoing)
           .fold(0, (s, t) => s + t.amount);
-  int expensesIn(String period) =>
-      _inPeriod(period)
+  int expensesInPeriods(Set<String> periods) =>
+      _inPeriods(periods)
           .where((t) => t.isOutgoing)
           .fold(0, (s, t) => s + t.amount);
+
+  int incomeIn(String period) => incomeInPeriods({period});
+  int expensesIn(String period) => expensesInPeriods({period});
 
   /// The counted payment covering [apartmentNumber]'s [period], and the
   /// share of it for that month.

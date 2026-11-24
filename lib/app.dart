@@ -14,6 +14,7 @@ import 'features/auth/data/auth_repository.dart';
 import 'features/auth/view/auth_gate.dart';
 import 'features/ledger/cubit/ledger_cubit.dart';
 import 'features/ledger/data/ledger_repository.dart';
+import 'features/ledger/view/holders_page.dart';
 import 'features/ledger/view/ledger_page.dart';
 import 'features/projects/data/project.dart';
 import 'features/projects/view/project_page.dart';
@@ -82,7 +83,20 @@ class _HomeSystemAppState extends State<HomeSystemApp> {
             builder: (_, _) => const HomeShell(),
             routes: [
               GoRoute(path: 'sheet', builder: (_, _) => const SheetDataPage()),
-              GoRoute(path: 'ledger', builder: (_, _) => const LedgerPage()),
+              GoRoute(path: 'balances', builder: (_, _) => const HoldersPage()),
+              GoRoute(
+                path: 'ledger',
+                builder: (_, state) {
+                  final q = state.uri.queryParameters;
+                  return LedgerPage(
+                    type: q['type'],
+                    months: q['months']
+                        ?.split(',')
+                        .where((m) => m.isNotEmpty)
+                        .toSet(),
+                  );
+                },
+              ),
               GoRoute(
                 path: 'project/:id',
                 builder: (_, state) =>

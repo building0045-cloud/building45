@@ -190,6 +190,17 @@ class LedgerTx extends Equatable {
 int balanceOf(Iterable<LedgerTx> txs) =>
     txs.fold(0, (total, t) => total + t.signedAmount);
 
+/// Money each staff member holds, by uid: what they received (opening
+/// share and collections) minus what they paid. The values add up to
+/// [balanceOf] of the same entries.
+Map<String, int> balanceByHolder(Iterable<LedgerTx> txs) {
+  final out = <String, int>{};
+  for (final t in txs) {
+    out[t.createdBy] = (out[t.createdBy] ?? 0) + t.signedAmount;
+  }
+  return out;
+}
+
 /// Splits [total] over [periods]: [fee] for each month in order, the last
 /// month gets what is left. Returns null when [total] does not reach the
 /// last month or exceeds [fee] for every month.

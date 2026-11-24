@@ -177,4 +177,72 @@ void main() {
     expect(back.createdBy, 'u1');
     expect(back.createdByName, 'وائل');
   });
+
+  group('period filter', () {
+    final state = LedgerLoaded([
+      _tx('o', TxType.opening, 850000),
+      _tx('nov', TxType.subscription, 10000),
+      _tx('novE', TxType.expense, 25000),
+      _tx('oct', TxType.subscription, 20000, date: DateTime(2026, 10, 5)),
+      _tx('dec25', TxType.expense, 7000, date: DateTime(2025, 12, 20)),
+      _tx('void', TxType.subscription, 99900, voided: true),
+    ]);
+
+    test('totals cover the chosen months across years, without opening', () {
+      expect(state.incomeInPeriods({'2026-11', '2026-10'}), 30000);
+      expect(state.expensesInPeriods({'2026-11', '2025-12'}), 32000);
+      expect(state.incomeInPeriods({'2026-09'}), 0);
+    });
+
+    test('an empty selection covers every month', () {
+      expect(state.incomeInPeriods({}), 30000);
+      expect(state.expensesInPeriods({}), 32000);
+    });
+
+    test('selection labels', () {
+      expect(describeSelection({}), 'كل الفترات');
+      expect(describeSelection({'2026-11'}), periodLabel('2026-11'));
+      expect(
+        describeSelection({
+          for (var m = 1; m <= 12; m++) shiftPeriod('2026-01', m - 1),
+        }),
+        'سنة ٢٠٢٦',
+      );
+      expect(
+        describeSelection({'2026-11', '2026-09', '2026-10'}),
+        '٣ شهور (${periodLabel('2026-09')} – ${periodLabel('2026-11')})',
+      );
+      expect(describeSelection({'2026-01', '2025-12'}), startsWith('شهرين'));
+    });
+  });
+
+  test('balance by holder splits the balance by who holds the money', () {
+    LedgerTx by(
+      String id,
+      TxType type,
+      int amount,
+      String uid, {
+      bool voided = false,
+    }) => LedgerTx(
+      id: id,
+      type: type,
+      amount: amount,
+      date: DateTime(2026, 11, 10),
+      createdBy: uid,
+      voided: voided,
+    );
+    final txs = [
+      by('o1', TxType.opening, 180000, 'm'),
+      by('o2', TxType.opening, 670000, 'w'),
+      by('s1', TxType.subscription, 30000, 'm'),
+      by('s2', TxType.subscription, 70000, 'w'),
+      by('e1', TxType.expense, 25000, 'w'),
+      by('x', TxType.expense, 99900, 'm', voided: true),
+    ];
+
+    final held = balanceByHolder(txs);
+
+    expect(held, {'m': 210000, 'w': 715000});
+    expect(held.values.fold(0, (s, v) => s + v), balanceOf(txs));
+  });
 }
